@@ -1,0 +1,40 @@
+<title>Финальный Reels</title>
+<meta name="claude:viewport-fit-sides" content="cover">
+<style>
+/* Раскладка: узкая колонка с плеером 9:16 по центру, под ним короткий список правок. */
+:root{
+  --bg:#f3efe9; --fg:#1d1814; --muted:#6d6459; --line:#ddd5c9; --accent:#a8741a; --panel:#0c0a09;
+  --font:"Inter",system-ui,-apple-system,"Segoe UI",sans-serif;
+}
+@media (prefers-color-scheme: dark){:root:not([data-theme="light"]){--bg:#14110f;--fg:#f1eadf;--muted:#a79d8f;--line:#2e2822;--accent:#e6b85c;color-scheme:dark}}
+:root[data-theme="dark"]{--bg:#14110f;--fg:#f1eadf;--muted:#a79d8f;--line:#2e2822;--accent:#e6b85c;color-scheme:dark}
+body{background:var(--bg);color:var(--fg);font:16px/1.5 var(--font);
+  padding-block:20px 40px;padding-left:max(16px,env(safe-area-inset-left,0px));padding-right:max(16px,env(safe-area-inset-right,0px))}
+main{max-width:440px;margin:0 auto;display:flex;flex-direction:column;gap:20px}
+h1{font-size:22px;line-height:1.2;margin:0;text-wrap:balance;font-weight:650}
+.sub{margin:4px 0 0;color:var(--muted);font-size:14px}
+.player{background:var(--panel);border-radius:14px;overflow:hidden;aspect-ratio:9/16;max-width:100%}
+video{display:block;width:100%;height:100%;object-fit:contain;background:var(--panel)}
+h2{font-size:13px;letter-spacing:.08em;text-transform:uppercase;color:var(--muted);margin:0 0 8px;font-weight:600}
+ol{margin:0;padding-left:20px;display:flex;flex-direction:column;gap:8px;font-size:15px}
+li::marker{color:var(--accent);font-weight:600}
+.t{font-variant-numeric:tabular-nums;color:var(--muted)}
+</style>
+<main>
+  <header>
+    <h1>Финальный Reels</h1>
+    <p class="sub">43,5 с · полный ролик · для просмотра сжат до 720×1280</p>
+  </header>
+  <div class="player">
+    <video controls playsinline preload="metadata" src="final_web.mp4"></video>
+  </div>
+  <section>
+    <h2>Что смотреть</h2>
+    <ol>
+      <li><span class="t">0:01</span> Цитата, затем «это не так» возвращает внимание к лицу.</li>
+      <li><span class="t">0:12</span> «сияющая изнутри» с мягким золотым свечением.</li>
+      <li><span class="t">0:30</span> Лента новостей, свайп на «пролистываю», возврат к лицу.</li>
+      <li><span class="t">0:42</span> Крупный план, «на корню» до конца ролика.</li>
+    </ol>
+  </section>
+</main>
