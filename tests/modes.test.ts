@@ -1,37 +1,37 @@
 import { describe, expect, it } from "vitest";
-import { detectMode } from "../src/core/modes";
+import { detectMode, type MaterialSummary } from "../src/core/modes";
 
-const base = { request: "", hasVideo: false, hasAudioOnly: false, hasScript: false, speechLikely: null };
+const m = (over: Partial<MaterialSummary>): MaterialSummary => ({ videos: [], audios: [], photos: [], hasScript: false, ...over });
 
-describe("detectMode", () => {
-  it("own talking video → MODE 1, keeps original voice", () => {
-    const d = detectMode({ ...base, hasVideo: true, speechLikely: true, request: "смонтируй рилс" });
-    expect(d).toMatchObject({ kind: "decided", mode: "expert-video", keepOriginalVoice: true });
+describe("detectMode — the voice is always the user's own recording", () => {
+  it("talking video → expert-video", () => {
+    expect(detectMode(m({ videos: [{ name: "a.mov", speechLikely: true }] }))).toMatchObject({ kind: "decided", mode: "expert-video" });
   });
-  it("text only → MODE 2", () => {
-    expect(detectMode({ ...base, hasScript: true })).toMatchObject({ kind: "decided", mode: "text-to-video" });
-    expect(detectMode({ ...base, request: "Сделай видео по сценарию" })).toMatchObject({ mode: "text-to-video" });
-    expect(detectMode({ ...base, request: "мәтін бойынша видео жаса" })).toMatchObject({ mode: "text-to-video" });
-  });
-  it("audio only → MODE 3, keeps original voice", () => {
-    expect(detectMode({ ...base, hasAudioOnly: true, speechLikely: true })).toMatchObject({ kind: "decided", mode: "audio-to-video", keepOriginalVoice: true });
-  });
-  it("own video + narrator request → asks instead of replacing the voice", () => {
-    const d = detectMode({ ...base, hasVideo: true, speechLikely: true, request: "сделай дикторскую озвучку" });
-    expect(d.kind).toBe("ask");
-    if (d.kind === "ask") expect(d.options).toEqual(["expert-video", "text-to-video"]);
-  });
-  it("own audio + narrator request → asks", () => {
-    expect(detectMode({ ...base, hasAudioOnly: true, request: "add a voiceover" }).kind).toBe("ask");
-  });
-  it("explicit 'keep my voice' wins over narrator words", () => {
-    const d = detectMode({ ...base, hasVideo: true, speechLikely: true, request: "оставь мой голос, без диктора" });
+  it("several talking videos → expert-video", () => {
+    const d = detectMode(m({ videos: [{ name: "a.mov", speechLikely: true }, { name: "b.mov", speechLikely: true }] }));
     expect(d).toMatchObject({ kind: "decided", mode: "expert-video" });
   });
-  it("silent video → asks", () => {
-    expect(detectMode({ ...base, hasVideo: true, speechLikely: false }).kind).toBe("ask");
+  it("voice recording only → voice-over-visuals (motion graphics)", () => {
+    expect(detectMode(m({ audios: ["voice.m4a"] }))).toMatchObject({ kind: "decided", mode: "voice-over-visuals", voiceSource: "voice.m4a" });
   });
-  it("nothing provided → asks for material", () => {
-    expect(detectMode(base).kind).toBe("ask");
+  it("voice recording + photos + silent clips → voice-over-visuals", () => {
+    const d = detectMode(m({ audios: ["v.mp3"], photos: ["1.heic"], videos: [{ name: "b.mov", speechLikely: false }] }));
+    expect(d).toMatchObject({ kind: "decided", mode: "voice-over-visuals" });
+  });
+  it("voice recording + talking video → asks which voice", () => {
+    expect(detectMode(m({ audios: ["v.wav"], videos: [{ name: "a.mov", speechLikely: true }] })).kind).toBe("ask");
+  });
+  it("two recordings → asks", () => {
+    expect(detectMode(m({ audios: ["a.mp3", "b.mp3"] })).kind).toBe("ask");
+  });
+  it("silent video / photos / script without voice → asks to upload a voice recording (no synthetic voice)", () => {
+    for (const x of [m({ videos: [{ name: "a.mov", speechLikely: false }] }), m({ photos: ["p.jpg"] }), m({ hasScript: true })]) {
+      const d = detectMode(x);
+      expect(d.kind).toBe("ask");
+      if (d.kind === "ask") expect(d.question).toMatch(/MP3, M4A или WAV/);
+    }
+  });
+  it("nothing → asks for material", () => {
+    expect(detectMode(m({})).kind).toBe("ask");
   });
 });

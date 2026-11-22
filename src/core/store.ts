@@ -37,23 +37,23 @@ export function slugify(name: string): string {
   return s || "project";
 }
 
-export function createProject(opts: { id: string; mode: Mode; language: Project["language"]; now?: Date }): Project {
+export function createProject(opts: { id: string; mode: Mode; language: Project["language"]; styleRequest?: string; now?: Date }): Project {
   const p = pathsFor(opts.id);
   if (existsSync(p.file)) throw new Error(`Проект ${opts.id} уже существует`);
   for (const d of [p.input, p.work, p.storyboard, p.output]) mkdirSync(d, { recursive: true });
   const at = (opts.now ?? new Date()).toISOString();
   const project: Project = {
-    schemaVersion: 1,
+    schemaVersion: 2,
     id: opts.id,
     createdAt: at,
     updatedAt: at,
     mode: opts.mode,
     status: "created",
     language: opts.language,
-    source: null,
+    styleRequest: opts.styleRequest ?? "",
+    assets: [],
+    voiceAssetId: null,
     scriptFile: null,
-    voice: opts.mode === "text-to-video" ? { type: "tts", provider: "piper", voice: "kk_KZ-issai-high", language: "kk" } : { type: "original" },
-    voiceReplacementConsent: false,
     history: [{ at, status: "created", note: `Создан проект, режим ${opts.mode}` }],
   };
   saveProject(project);

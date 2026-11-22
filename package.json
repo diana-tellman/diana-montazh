@@ -15,7 +15,7 @@
     "doctor": "tsx scripts/doctor.ts",
     "new": "tsx scripts/new-project.ts",
     "ingest": "tsx scripts/ingest.ts",
-    "voice": "tsx scripts/voice.ts",
+    "transcribe": "tsx scripts/transcribe.ts",
     "status": "tsx scripts/status.ts",
     "smoke": "tsx scripts/smoke.ts"
   },
@@ -27,9 +27,12 @@
     "@remotion/media": "4.0.545",
     "@remotion/renderer": "4.0.545",
     "@remotion/zod-types": "4.0.545",
+    "heic-convert": "2.1.0",
     "react": "19.2.0",
     "react-dom": "19.2.0",
     "remotion": "4.0.545",
+    "sharp": "0.35.5",
+    "sherpa-onnx-node": "2.0.3",
     "zod": "4.6.7"
   },
   "devDependencies": {

@@ -1,99 +1,84 @@
 import type { Mode } from "./project";
 
-export type ModeInputs = {
-  /** The user's own words (request), in kk / ru / en. */
-  request: string;
-  hasVideo: boolean;
-  hasAudioOnly: boolean;
+export type MaterialSummary = {
+  /** Videos with a flag whether they contain sustained voice-level sound. */
+  videos: Array<{ name: string; speechLikely: boolean | null }>;
+  /** Separate audio recordings (MP3 / M4A / WAV / …). */
+  audios: string[];
+  photos: string[];
   hasScript: boolean;
-  /** Result of speech-activity analysis of the uploaded media, if any. */
-  speechLikely: boolean | null;
 };
 
 export type ModeDecision =
-  | { kind: "decided"; mode: Mode; reason: string; keepOriginalVoice: boolean }
-  | { kind: "ask"; question: string; options: Mode[]; reason: string };
+  | { kind: "decided"; mode: Mode; voiceSource: string; reason: string }
+  | { kind: "ask"; question: string; reason: string };
 
-const norm = (s: string) => s.toLowerCase().replace(/ё/g, "е");
-
-/** Phrases that mean "use a narrator / synthetic voice". */
-const NARRATOR = [
-  "диктор", "озвуч", "закадров", "синтез", "tts", "voiceover", "voice over", "narrator", "narration",
-  "дыбыстап", "дауыстап", "диктор дауыс", "жасанды дауыс",
-];
-/** Phrases that mean "keep my own voice". */
-const KEEP_OWN = [
-  "мой голос", "моим голосом", "своим голосом", "свой голос", "оригинальн", "сохрани голос",
-  "my voice", "own voice", "original voice", "менің дауыс", "өз дауыс", "дауысымды сақта", "дауысым",
-];
-/** Explicit request to make a video from text only. */
-const FROM_TEXT = [
-  "по тексту", "по сценарию", "из текста", "из сценария", "from text", "from script", "мәтін бойынша", "сценарий бойынша", "мәтіннен",
-];
-
-const hasAny = (text: string, list: string[]) => list.some((w) => text.includes(w));
+const UPLOAD_VOICE =
+  "Загрузите, пожалуйста, свою голосовую запись (MP3, M4A или WAV) — она станет озвучкой видео. / " +
+  "Видеоның дыбысы болатын өз дауыс жазбаңызды жүктеңіз (MP3, M4A немесе WAV).";
 
 /**
- * Decide the production mode from the request and the uploaded material.
- * Never silently replaces a real person's voice: any conflict between
- * "own recording" and "narrator" becomes a question to the user.
+ * Decide the production mode from the uploaded material.
+ * The narration is always the user's own recording; when it is unclear
+ * which recording is the voice, the user is asked — never guessed.
  */
-export function detectMode(input: ModeInputs): ModeDecision {
-  const t = norm(input.request);
-  const wantsNarrator = hasAny(t, NARRATOR);
-  const wantsOwn = hasAny(t, KEEP_OWN);
-  const wantsFromText = hasAny(t, FROM_TEXT);
+export function detectMode(m: MaterialSummary): ModeDecision {
+  const speaking = m.videos.filter((v) => v.speechLikely === true);
 
-  const askVoice = (reason: string, own: Mode): ModeDecision => ({
-    kind: "ask",
-    reason,
-    options: [own, "text-to-video"],
-    question:
-      "Сохранить ваш оригинальный голос из записи или сделать дикторскую озвучку по тексту? / " +
-      "Жазбадағы өз дауысыңызды сақтаймыз ба, әлде мәтін бойынша диктор дауысын жасаймыз ба?",
-  });
+  if (m.audios.length > 1) {
+    return {
+      kind: "ask",
+      reason: "Загружено несколько аудиозаписей.",
+      question: `Какая запись — основная озвучка: ${m.audios.join(", ")}? Или склеить их по порядку? / Қай жазба негізгі дыбыс болады?`,
+    };
+  }
 
-  if (input.hasVideo) {
-    if (wantsNarrator && !wantsOwn) {
-      return askVoice("Есть собственное видео, но в запросе упомянута озвучка/диктор.", "expert-video");
+  if (m.audios.length === 1) {
+    const audio = m.audios[0]!;
+    if (speaking.length > 0) {
+      return {
+        kind: "ask",
+        reason: "Есть и отдельная аудиозапись, и видео с речью.",
+        question:
+          `Что использовать как голос видео: отдельную запись «${audio}» или речь из видео (${speaking.map((v) => v.name).join(", ")})? / ` +
+          "Видеодағы сөзді қолданамыз ба, әлде бөлек аудиожазбаны ма?",
+      };
     }
-    if (input.speechLikely === false && !wantsOwn) {
-      return askVoice("В видео не обнаружена речь — непонятно, нужен ли диктор.", "expert-video");
-    }
+    return {
+      kind: "decided",
+      mode: "voice-over-visuals",
+      voiceSource: audio,
+      reason:
+        m.videos.length + m.photos.length > 0
+          ? "Ваша аудиозапись — озвучка, фото и видео — визуальный ряд."
+          : "Ваша аудиозапись — озвучка, визуальный ряд — анимационная графика.",
+    };
+  }
+
+  if (speaking.length > 0) {
     return {
       kind: "decided",
       mode: "expert-video",
-      keepOriginalVoice: true,
-      reason: "Загружено собственное видео с речью: сохраняем оригинальный голос.",
+      voiceSource: speaking.map((v) => v.name).join(", "),
+      reason: "Видео с вашей речью: оригинальный голос сохраняется.",
     };
   }
 
-  if (input.hasAudioOnly) {
-    if (wantsNarrator && !wantsOwn) {
-      return askVoice("Есть собственная аудиозапись, но в запросе упомянута озвучка/диктор.", "audio-to-video");
-    }
+  if (m.videos.length > 0) {
     return {
-      kind: "decided",
-      mode: "audio-to-video",
-      keepOriginalVoice: true,
-      reason: "Загружена аудиозапись без видео: анимация под оригинальный голос.",
+      kind: "ask",
+      reason: "В видео не обнаружена речь (или звука нет).",
+      question: `В загруженном видео не слышно речи. ${UPLOAD_VOICE}`,
     };
   }
 
-  if (input.hasScript || wantsFromText || wantsNarrator) {
-    return {
-      kind: "decided",
-      mode: "text-to-video",
-      keepOriginalVoice: false,
-      reason: "Нет собственной записи: видео по тексту с дикторской озвучкой (TTS или загруженная озвучка).",
-    };
+  if (m.photos.length > 0 || m.hasScript) {
+    return { kind: "ask", reason: "Нет голосовой записи.", question: UPLOAD_VOICE };
   }
 
   return {
     kind: "ask",
-    reason: "Не передано ни видео, ни аудио, ни текст.",
-    options: ["expert-video", "text-to-video", "audio-to-video"],
-    question:
-      "Пришлите видео, аудиозапись или текст сценария. / Видео, аудиожазба немесе сценарий мәтінін жіберіңіз.",
+    reason: "Материалы не загружены.",
+    question: "Загрузите видео, фото или аудиозапись своего голоса. / Видео, фото немесе өз дауысыңыздың жазбасын жүктеңіз.",
   };
 }

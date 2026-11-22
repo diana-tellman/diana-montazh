@@ -3,8 +3,8 @@ import type { Project } from "../src/core/project";
 import { canTransition, transition, TransitionError } from "../src/core/state";
 
 const mk = (mode: Project["mode"], status: Project["status"]): Project => ({
-  schemaVersion: 1, id: "t", createdAt: "", updatedAt: "", mode, status, language: "kk", source: null, scriptFile: null,
-  voice: { type: "original" }, voiceReplacementConsent: false, history: [],
+  schemaVersion: 2, id: "t", createdAt: "", updatedAt: "", mode, status, language: "kk", styleRequest: "", assets: [],
+  voiceAssetId: null, scriptFile: null, history: [],
 });
 
 describe("state machine", () => {
@@ -12,15 +12,9 @@ describe("state machine", () => {
     expect(canTransition("expert-video", "storyboard_draft", "rendered")).toBe(false);
     expect(() => transition(mk("expert-video", "storyboard_draft"), "rendered", "")).toThrow(TransitionError);
   });
-  it("MODE 2 voices only after approval, then renders", () => {
-    expect(canTransition("text-to-video", "storyboard_draft", "voiced")).toBe(false);
-    expect(canTransition("text-to-video", "approved", "voiced")).toBe(true);
-    expect(canTransition("text-to-video", "approved", "rendered")).toBe(false);
-    expect(canTransition("text-to-video", "voiced", "rendered")).toBe(true);
-  });
-  it("MODE 1 and 3 skip TTS", () => {
-    expect(canTransition("expert-video", "approved", "rendered")).toBe(true);
-    expect(canTransition("audio-to-video", "approved", "voiced")).toBe(false);
+  it("both modes share one pipeline", () => {
+    expect(canTransition("voice-over-visuals", "approved", "rendered")).toBe(true);
+    expect(canTransition("voice-over-visuals", "storyboard_draft", "rendered")).toBe(false);
   });
   it("editing storyboard after approval drops back to draft", () => {
     expect(canTransition("expert-video", "approved", "storyboard_draft")).toBe(true);

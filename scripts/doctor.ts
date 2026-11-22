@@ -2,7 +2,8 @@
 import { execFile } from "node:child_process";
 import { promisify } from "node:util";
 import { findBrowserExecutable } from "../src/render/browser";
-import { espeakAvailable } from "../src/voice/tts";
+import { MODELS, verifyModel } from "../src/speech/models";
+import { MODELS_DIR } from "../src/core/store";
 import { main, out } from "./_cli";
 
 const run = promisify(execFile);
@@ -30,20 +31,18 @@ main(async () => {
   const ffmpeg = await cmd("ffmpeg", ["-version"]);
   const ffprobe = await cmd("ffprobe", ["-version"]);
   const browser = findBrowserExecutable();
-  const espeak = await espeakAvailable();
   const report = {
     node: process.version,
     ffmpeg,
     ffprobe,
     browser: browser ?? "не найден — Remotion скачает chrome-headless-shell сам (нужна сеть)",
-    tts: {
-      espeakDraft: espeak.available,
-      piperPackage: await py("piper"),
+    speech: {
+      engine: "sherpa-onnx (Whisper large-v3-turbo + Silero VAD), локально на CPU",
+      modelsReady: Object.fromEntries(await Promise.all(Object.keys(MODELS).map(async (id) => [id, await verifyModel(MODELS_DIR, id as keyof typeof MODELS)]))),
     },
-    stt: { fasterWhisper: await py("faster_whisper") },
     faces: { mediapipe: await py("mediapipe") },
     network: {
-      huggingface: await reach("https://huggingface.co"),
+      githubReleases: await reach("https://github.com/k2-fsa/sherpa-onnx/releases/download/asr-models/silero_vad.onnx"),
       mediapipeModels: await reach("https://storage.googleapis.com/mediapipe-models/"),
       googleDrive: await reach("https://drive.google.com"),
     },
@@ -51,7 +50,7 @@ main(async () => {
   const blockers: string[] = [];
   if (!ffmpeg || !ffprobe) blockers.push("Нет ffmpeg/ffprobe — видео обработать нельзя.");
   const limits: string[] = [];
-  if (!report.network.huggingface) limits.push("huggingface.co закрыт: Whisper и Piper в этой сессии недоступны → импорт субтитров / загруженная озвучка / GitHub Actions.");
-  if (!espeak.available) limits.push("espeak-ng не установлен: черновая озвучка недоступна (apt-get install -y espeak-ng).");
+  if (!report.network.githubReleases && !Object.values(report.speech.modelsReady).every(Boolean))
+    limits.push("Загрузки релизов GitHub недоступны: автоматическое распознавание речи невозможно → импорт текста с таймкодами (SRT/VTT).");
   out({ ...report, blockers, limits, ok: blockers.length === 0 });
 });

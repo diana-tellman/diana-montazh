@@ -1,15 +1,8 @@
 import type { Mode, Project, Status } from "./project";
 
-/**
- * Allowed forward transitions per mode. TTS narration is generated only
- * AFTER storyboard approval (MODE 2), so "voiced" sits between "approved"
- * and "rendered". Modes 1 and 3 keep the original voice and skip it.
- */
-const FLOW: Record<Mode, Status[]> = {
-  "expert-video": ["created", "ingested", "analyzed", "storyboard_draft", "approved", "rendered", "cover_done", "qc_passed", "delivered"],
-  "audio-to-video": ["created", "ingested", "analyzed", "storyboard_draft", "approved", "rendered", "cover_done", "qc_passed", "delivered"],
-  "text-to-video": ["created", "ingested", "analyzed", "storyboard_draft", "approved", "voiced", "rendered", "cover_done", "qc_passed", "delivered"],
-};
+/** Forward order of the pipeline. Identical for all modes: the voice is always the user's own recording. */
+const ORDER: Status[] = ["created", "ingested", "analyzed", "storyboard_draft", "approved", "rendered", "cover_done", "qc_passed", "delivered"];
+const FLOW: Record<Mode, Status[]> = { "expert-video": ORDER, "voice-over-visuals": ORDER };
 
 export function flowFor(mode: Mode): readonly Status[] {
   return FLOW[mode];
