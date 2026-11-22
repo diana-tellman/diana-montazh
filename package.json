@@ -1,0 +1,42 @@
+{
+  "name": "diana-mobile-motion-studio",
+  "version": "0.1.0",
+  "private": true,
+  "description": "Storyboard-first AI video editing studio (Remotion) for Claude Code on iPhone",
+  "type": "module",
+  "license": "UNLICENSED",
+  "engines": {
+    "node": ">=20"
+  },
+  "scripts": {
+    "studio": "remotion studio",
+    "typecheck": "tsc --noEmit",
+    "test": "vitest run",
+    "doctor": "tsx scripts/doctor.ts",
+    "new": "tsx scripts/new-project.ts",
+    "ingest": "tsx scripts/ingest.ts",
+    "voice": "tsx scripts/voice.ts",
+    "status": "tsx scripts/status.ts",
+    "smoke": "tsx scripts/smoke.ts"
+  },
+  "dependencies": {
+    "@remotion/bundler": "4.0.545",
+    "@remotion/captions": "4.0.545",
+    "@remotion/cli": "4.0.545",
+    "@remotion/layout-utils": "4.0.545",
+    "@remotion/media": "4.0.545",
+    "@remotion/renderer": "4.0.545",
+    "@remotion/zod-types": "4.0.545",
+    "react": "19.2.0",
+    "react-dom": "19.2.0",
+    "remotion": "4.0.545",
+    "zod": "4.6.7"
+  },
+  "devDependencies": {
+    "@types/node": "26.6.6",
+    "@types/react": "19.3.0",
+    "tsx": "4.23.15",
+    "typescript": "5.9.3",
+    "vitest": "4.1.12"
+  }
+}
