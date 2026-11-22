@@ -75,3 +75,21 @@ export function chooseFps(sourceFps: number | undefined, keepSource: boolean): n
   const nearest = standard.reduce((b, s) => (Math.abs(s - sourceFps) < Math.abs(b - sourceFps) ? s : b), 30);
   return nearest;
 }
+
+/**
+ * Blurred, darkened full-frame background for formats the source does not fill
+ * (e.g. horizontal video in 9:16). Rendered by ffmpeg at low resolution — far cheaper
+ * than CSS blur in a CPU-only cloud browser (measured ~3x faster overall render).
+ */
+export function blurFillArgs(input: string, output: string, width: number, height: number): string[] {
+  const vf = [
+    `scale=${Math.round(width / 4)}:${Math.round(height / 4)}:force_original_aspect_ratio=increase`,
+    `crop=${Math.round(width / 4)}:${Math.round(height / 4)}`,
+    "boxblur=12:2",
+    "eq=brightness=-0.08:saturation=0.85",
+    `scale=${width}:${height}:flags=bilinear`,
+    "setsar=1",
+    "format=yuv420p",
+  ].join(",");
+  return ["-hide_banner", "-y", "-i", input, "-an", "-vf", vf, "-c:v", "libx264", "-preset", "veryfast", "-crf", "26", "-g", "30", "-movflags", "+faststart", output];
+}

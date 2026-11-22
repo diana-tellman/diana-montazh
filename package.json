@@ -17,7 +17,8 @@
     "ingest": "tsx scripts/ingest.ts",
     "transcribe": "tsx scripts/transcribe.ts",
     "status": "tsx scripts/status.ts",
-    "smoke": "tsx scripts/smoke.ts"
+    "smoke": "tsx scripts/smoke.ts",
+    "bench": "tsx scripts/bench.ts"
   },
   "dependencies": {
     "@remotion/bundler": "4.0.545",

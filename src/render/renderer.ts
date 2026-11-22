@@ -13,6 +13,8 @@ export type RenderJob = {
   /** Optional frame range for smoke tests / previews. */
   frameRange?: [number, number];
   scale?: number;
+  /** Parallel browser tabs. null = Remotion default. */
+  concurrency?: number | null;
   onProgress?: (p: number) => void;
 };
 
@@ -34,6 +36,7 @@ export async function renderMp4(job: RenderJob): Promise<string> {
     browserExecutable,
     frameRange: job.frameRange ?? null,
     scale: job.scale ?? 1,
+    concurrency: job.concurrency ?? null,
     chromiumOptions: { gl: "swangle" },
     onProgress: ({ progress }) => job.onProgress?.(progress),
   });

@@ -1,6 +1,7 @@
 import { Composition } from "remotion";
 import { FORMATS } from "./formats";
 import { MainVideo, mainVideoSchema, calculateMainMetadata } from "./compositions/MainVideo";
+import { RenderBenchmark, benchSchema } from "./compositions/RenderBenchmark";
 
 export const Root: React.FC = () => (
   <>
@@ -18,5 +19,16 @@ export const Root: React.FC = () => (
         calculateMetadata={calculateMainMetadata}
       />
     ))}
+    <Composition
+      id="RenderBenchmark"
+      component={RenderBenchmark}
+      schema={benchSchema}
+      width={1080}
+      height={1920}
+      fps={30}
+      durationInFrames={900}
+      defaultProps={{ video: "work/video-01.mp4", blurredFill: "work/video-01.fill.mp4", durationSec: 30 }}
+      calculateMetadata={({ props }) => ({ durationInFrames: Math.round(props.durationSec * 30) })}
+    />
   </>
 );
