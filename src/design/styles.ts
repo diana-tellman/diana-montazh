@@ -25,7 +25,7 @@ export type StyleDef = {
   font: FontId;
   weight: number;
   uppercase: boolean;
-  /** Caption font size as a fraction of the frame's short side (1080 → px). */
+  /** Caption font size as a fraction of the frame's short side (1080 → px). Standard Reels size ≈ 48–56 px. */
   size: number;
   lineHeight: number;
   letterSpacing: number;
@@ -35,7 +35,7 @@ export type StyleDef = {
   /** Words not yet spoken: hidden (karaoke reveal) or dimmed. */
   upcoming: "dim" | "hidden" | "visible";
   /** Readability treatment behind text. */
-  backdrop: "shadow" | "stroke" | "glass" | "none";
+  backdrop: "shadow" | "glass" | "none";
   /** Entrance of a caption block. */
   enter: "pop" | "rise" | "fade" | "slide";
   maxWordsPerPhrase: number;
@@ -47,37 +47,37 @@ export const STYLES: Record<StylePreset, StyleDef> = {
   brand: {
     label: "Diana Brand",
     description: "Графит/бордо/белый, Onest, активное слово на бордовой плашке.",
-    font: "onest", weight: 800, uppercase: false, size: 0.064, lineHeight: 1.08, letterSpacing: -0.01,
+    font: "onest", weight: 800, uppercase: false, size: 0.048, lineHeight: 1.08, letterSpacing: -0.01,
     colors: { text: BRAND.white, accent: BRAND.burgundy, onAccent: BRAND.white, upcoming: "rgba(255,255,255,0.72)" },
-    active: "pill", upcoming: "dim", backdrop: "shadow", enter: "pop", maxWordsPerPhrase: 4, maxCharsPerLine: 18, emphasisScale: 1.12,
+    active: "pill", upcoming: "dim", backdrop: "shadow", enter: "pop", maxWordsPerPhrase: 4, maxCharsPerLine: 22, emphasisScale: 1.06,
   },
   minimal: {
     label: "Minimal",
     description: "Спокойный белый текст с мягкой тенью, акцент — золотистый цвет слова.",
-    font: "inter", weight: 700, uppercase: false, size: 0.056, lineHeight: 1.12, letterSpacing: -0.005,
+    font: "inter", weight: 700, uppercase: false, size: 0.044, lineHeight: 1.12, letterSpacing: -0.005,
     colors: { text: BRAND.white, accent: "#E6B43C", onAccent: "#141414", upcoming: BRAND.white },
     active: "color", upcoming: "visible", backdrop: "shadow", enter: "fade", maxWordsPerPhrase: 5, maxCharsPerLine: 22, emphasisScale: 1.0,
   },
   kinetic: {
     label: "Kinetic",
-    description: "Крупный капс Montserrat, слова выпрыгивают, акцент — красная плашка.",
-    font: "montserrat", weight: 900, uppercase: true, size: 0.07, lineHeight: 1.0, letterSpacing: 0,
+    description: "Капс Montserrat, слова выпрыгивают, акцент — красная плашка (без обводки).",
+    font: "montserrat", weight: 900, uppercase: true, size: 0.052, lineHeight: 1.0, letterSpacing: 0,
     colors: { text: BRAND.white, accent: "#FF2D2D", onAccent: BRAND.white, upcoming: BRAND.white },
-    active: "pill", upcoming: "hidden", backdrop: "stroke", enter: "pop", maxWordsPerPhrase: 3, maxCharsPerLine: 14, emphasisScale: 1.18,
+    active: "pill", upcoming: "hidden", backdrop: "shadow", enter: "pop", maxWordsPerPhrase: 3, maxCharsPerLine: 16, emphasisScale: 1.1,
   },
   glass: {
     label: "Glass",
     description: "Текст на стеклянной плашке в стиле iOS, слова плавно поднимаются.",
-    font: "onest", weight: 700, uppercase: false, size: 0.056, lineHeight: 1.1, letterSpacing: -0.01,
+    font: "onest", weight: 700, uppercase: false, size: 0.045, lineHeight: 1.1, letterSpacing: -0.01,
     colors: { text: BRAND.white, accent: "#7FD3FF", onAccent: "#0B1A24", upcoming: "rgba(255,255,255,0)" },
     active: "color", upcoming: "hidden", backdrop: "glass", enter: "rise", maxWordsPerPhrase: 4, maxCharsPerLine: 20, emphasisScale: 1.06,
   },
   lime: {
     label: "Lime",
     description: "Брутальный стикер: чёрный текст на лаймовой плашке, капс.",
-    font: "montserrat", weight: 900, uppercase: true, size: 0.062, lineHeight: 1.02, letterSpacing: 0.005,
+    font: "montserrat", weight: 900, uppercase: true, size: 0.05, lineHeight: 1.02, letterSpacing: 0.005,
     colors: { text: "#141414", accent: "#C8FF2E", onAccent: "#141414", upcoming: "#141414" },
-    active: "scale", upcoming: "visible", backdrop: "none", enter: "slide", maxWordsPerPhrase: 3, maxCharsPerLine: 14, emphasisScale: 1.15,
+    active: "scale", upcoming: "visible", backdrop: "none", enter: "slide", maxWordsPerPhrase: 3, maxCharsPerLine: 16, emphasisScale: 1.08,
   },
 };
 

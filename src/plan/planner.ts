@@ -4,7 +4,7 @@ import type { Project } from "../core/project";
 import { STYLES, contrastRatio, type Colors, type StyleDef, type StylePreset } from "../design/styles";
 import { FORMATS, type FormatId } from "../formats";
 import { chooseFraming, computeWindow, easeInOut, mapRect, type Framing } from "../layout/frame";
-import { inside, overlaps, safeZone, type Platform, type Rect } from "../layout/safeZones";
+import { captionBand, inside, overlaps, safeZone, type Platform, type Rect } from "../layout/safeZones";
 import type { Transcript } from "../speech/transcript";
 import type { BehindText, CameraKey, Caption, Check, Scene, Sfx, Storyboard, Visual } from "../storyboard/schema";
 import { cameraAt } from "../storyboard/schema";
@@ -206,7 +206,8 @@ export function buildStoryboard(inp: PlanInput, version = 1): Storyboard {
     const end = r3(nextStart - lastEnd < 1.0 ? Math.max(nextStart - 0.05, start + 0.5) : Math.min(nextStart, Math.max(lastEnd + 0.35, start + 1.0)));
     const lines = splitLines(p, st.maxCharsPerLine);
     const zone = faceZoneOut(start, end);
-    const safeW = (safe.x1 - safe.x0) * W;
+    const band = captionBand(safe);
+    const safeW = (band.x1 - band.x0) * W;
     const fits = (scale: number, y: number): Rect | null => {
       const px = baseFont * scale;
       const wMax = Math.max(...lines.map((l) => estTextWidth(l.map((w) => w.text).join(" "), px * (l.some((w) => w.emphasis) ? st.emphasisScale : 1), st)));
@@ -227,8 +228,10 @@ export function buildStoryboard(inp: PlanInput, version = 1): Storyboard {
       else if (o.captionPosition === "middle") cands.push(0.5 - h / 2);
       else if (o.captionPosition === "bottom") cands.push(safe.y1 - h);
       else {
-        if (zone) cands.push(Math.max(zone.y1 + 0.015, 0.5), zone.y1 + 0.015);
-        cands.push(0.62, safe.y1 - h, zone ? zone.y0 - 0.015 - h : 0.25, safe.y0);
+        // Default: as low as possible while staying above the platform's blind zone.
+        cands.push(safe.y1 - h);
+        if (zone) cands.push(zone.y1 + 0.015);
+        cands.push(0.62, zone ? zone.y0 - 0.015 - h : 0.25, safe.y0);
       }
       const ok = cands.map((y) => Math.max(safe.y0, Math.min(safe.y1 - h, y))).find((y) => fits(scale, y));
       if (ok !== undefined) {
@@ -240,9 +243,10 @@ export function buildStoryboard(inp: PlanInput, version = 1): Storyboard {
       chosen = { y: Math.max(safe.y0, safe.y1 - hOf(MIN_SCALE)), scale: MIN_SCALE };
       checks.push({ level: "error", code: "caption_layout", at: start, message: `Субтитр «${p.map((w) => w.text).join(" ")}» не помещается без перекрытия лица — нужен другой layout (меньше зум / текст сверху).` });
     }
+    chosen.y = Math.floor(chosen.y * 1000) / 1000; // never round down into the blind zone
     prevY = chosen.y;
     captions.push({
-      id: `c${i + 1}`, start, end, y: r3(chosen.y), scale: chosen.scale,
+      id: `c${i + 1}`, start, end, y: chosen.y, scale: chosen.scale,
       lines: lines.map((l) => l.map((w) => ({ text: w.text, start: r3(w.start), end: r3(w.end), emphasis: w.emphasis }))),
     });
   });

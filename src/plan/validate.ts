@@ -1,6 +1,6 @@
 import type { Faces } from "../analysis/faces";
 import { computeWindow, easeInOut, mapRect } from "../layout/frame";
-import { inside, overlaps, safeZone, type Rect } from "../layout/safeZones";
+import { captionBand, overlaps, safeZone, type Rect } from "../layout/safeZones";
 import { STYLES } from "../design/styles";
 import { cameraAt, type Check, type Storyboard } from "../storyboard/schema";
 import { estTextWidth } from "./planner";
@@ -37,7 +37,8 @@ export function validateStoryboard(sb: Storyboard, faces: Faces | null, baseChec
     const h = (c.lines.length * px * st.lineHeight + px * 0.5) / sb.height;
     const box = { x0: 0.5 - wMax / 2 / sb.width, x1: 0.5 + wMax / 2 / sb.width, y0: c.y, y1: c.y + h };
     const label = `«${text.join(" ")}»`;
-    if (!inside({ ...box, x0: Math.max(box.x0, safe.x0), x1: Math.min(box.x1, safe.x1) }, safe) || box.y0 < safe.y0 - 0.005 || box.y1 > safe.y1 + 0.005)
+    const band = captionBand(safe);
+    if (box.x0 < band.x0 - 0.01 || box.x1 > band.x1 + 0.01 || box.y0 < safe.y0 - 0.002 || box.y1 > safe.y1 + 0.002)
       checks.push({ level: "error", code: "caption_safe", at: c.start, message: `Субтитр ${label} выходит из безопасной зоны.` });
     if (c.scale < 0.72) checks.push({ level: "warn", code: "caption_small", at: c.start, message: `Субтитр ${label} мельче минимума читаемости.` });
     for (let t = c.start; t <= c.end; t += 0.2) {

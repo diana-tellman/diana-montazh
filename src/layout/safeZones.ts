@@ -22,3 +22,9 @@ export function intersect(a: Rect, b: Rect): Rect {
 export const overlaps = (a: Rect, b: Rect, tol = 0) => area(intersect(a, b)) > tol;
 export const inside = (inner: Rect, outer: Rect, eps = 1e-6) =>
   inner.x0 >= outer.x0 - eps && inner.x1 <= outer.x1 + eps && inner.y0 >= outer.y0 - eps && inner.y1 <= outer.y1 + eps;
+
+/** Horizontal band for centred text: centred on the frame, as wide as the safe zone allows on BOTH sides. */
+export function captionBand(z: Rect): { x0: number; x1: number } {
+  const half = Math.min(0.5 - z.x0, z.x1 - 0.5);
+  return { x0: 0.5 - half, x1: 0.5 + half };
+}

@@ -5,7 +5,7 @@ import { z } from "zod";
 import { ensureFontsLoaded, FONT_FAMILIES } from "../design/fonts";
 import { contrastRatio, STYLES, type StyleDef } from "../design/styles";
 import { computeWindow, easeInOut } from "../layout/frame";
-import { safeZone } from "../layout/safeZones";
+import { captionBand, safeZone } from "../layout/safeZones";
 import { cameraAt, StoryboardSchema, type BehindText, type Callout, type Caption, type Storyboard, type Visual } from "../storyboard/schema";
 
 ensureFontsLoaded();
@@ -143,7 +143,7 @@ const CaptionBlock: React.FC<{ c: Caption; sb: Storyboard; st: StyleDef }> = ({ 
   const { fps } = useVideoConfig();
   const t = c.start + frame / fps;
   const col = sb.style.colors;
-  const safe = safeZone(sb.platform);
+  const band = captionBand(safeZone(sb.platform));
   const px = st.size * Math.min(sb.width, sb.height) * c.scale;
   const dur = (c.end - c.start) * fps;
   const inP = spring({ frame, fps, config: { damping: 15, stiffness: 170 } });
@@ -159,22 +159,22 @@ const CaptionBlock: React.FC<{ c: Caption; sb: Storyboard; st: StyleDef }> = ({ 
     : { opacity: outP * interpolate(frame, [0, 6], [0, 1], { extrapolateRight: "clamp" }) };
 
   const textDeco: React.CSSProperties =
-    st.backdrop === "shadow" ? { textShadow: "0 4px 18px rgba(0,0,0,0.55), 0 2px 4px rgba(0,0,0,0.6)" }
-    : st.backdrop === "stroke" ? { WebkitTextStroke: `${Math.max(3, px * 0.09)}px #000`, paintOrder: "stroke fill", textShadow: "0 6px 0 rgba(0,0,0,0.35)" }
+    // No outline: a tight dark shadow + a soft halo keeps white text readable on any background.
+    st.backdrop === "shadow" ? { textShadow: "0 1px 2px rgba(0,0,0,0.75), 0 2px 8px rgba(0,0,0,0.6), 0 0 22px rgba(0,0,0,0.4)" }
     : {};
   const container: React.CSSProperties =
     st.backdrop === "glass" ? { background: "rgba(16,18,24,0.55)", border: "1.5px solid rgba(255,255,255,0.28)", boxShadow: "inset 0 1px 0 rgba(255,255,255,0.35), 0 12px 40px rgba(0,0,0,0.35)", borderRadius: px * 0.45, padding: `${px * 0.22}px ${px * 0.42}px` }
     : sb.style.preset === "lime" ? { background: col.accent, borderRadius: px * 0.18, padding: `${px * 0.16}px ${px * 0.32}px`, boxShadow: "0 10px 0 rgba(0,0,0,0.85)" }
     : {};
 
-  // Dark accents (e.g. burgundy) are unreadable as text colour over video → use a highlighter bar instead.
-  const accentAsText = /^#[0-9a-f]{6}$/i.test(col.accent) && contrastRatio(col.accent, "#000000") >= 4.5;
+  // Coloured words are only reliable on a dark glass plate; over video use a marker bar.
+  const accentAsText = st.backdrop === "glass" && /^#[0-9a-f]{6}$/i.test(col.accent) && contrastRatio(col.accent, "#000000") >= 4.5;
   let wi = -1;
   return (
-    <div style={{ position: "absolute", left: safe.x0 * sb.width, width: (safe.x1 - safe.x0) * sb.width, top: c.y * sb.height, display: "flex", justifyContent: "center" }}>
+    <div style={{ position: "absolute", left: band.x0 * sb.width, width: (band.x1 - band.x0) * sb.width, top: c.y * sb.height, display: "flex", justifyContent: "center" }}>
       <div style={{ ...container, ...blockAnim, transformOrigin: "center center", display: "flex", flexDirection: "column", alignItems: "center" }}>
         {c.lines.map((line, li) => (
-          <FitLine key={li} maxWidth={(safe.x1 - safe.x0) * sb.width - px * 0.8} frame={frame}>
+          <FitLine key={li} maxWidth={(band.x1 - band.x0) * sb.width - px * 0.8} frame={frame}>
             {line.map((w, k) => {
               wi++;
               const i = wi;
