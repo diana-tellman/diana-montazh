@@ -4,9 +4,11 @@ import { AbsoluteFill, Img, Sequence, interpolate, spring, staticFile, useCurren
 import { z } from "zod";
 import { ensureFontsLoaded, FONT_FAMILIES } from "../design/fonts";
 import { contrastRatio, STYLES, type StyleDef } from "../design/styles";
-import { computeWindow, easeInOut } from "../layout/frame";
+import { easeInOut } from "../layout/frame";
+import { personBox, personWindow, secondaryBox } from "../layout/person";
+import { ICONS } from "../design/icons";
 import { captionBand, safeZone } from "../layout/safeZones";
-import { cameraAt, StoryboardSchema, type BehindText, type Callout, type Caption, type Storyboard, type Visual } from "../storyboard/schema";
+import { cameraAt, layoutAt, StoryboardSchema, type BehindText, type Callout, type Caption, type Icon, type Layout, type Storyboard, type Visual } from "../storyboard/schema";
 
 ensureFontsLoaded();
 
@@ -27,7 +29,6 @@ export const calculateEditMetadata: CalculateMetadataFunction<EditProps> = ({ pr
   durationInFrames: Math.max(1, Math.round(props.storyboard.durationSec * props.storyboard.fps)),
 });
 
-const FACE_TARGET = { x: 0.5, y: 0.36 };
 
 // ---------------- visuals + camera ----------------
 
@@ -54,10 +55,28 @@ const Graphic: React.FC<{ sb: Storyboard }> = ({ sb }) => {
 /** Source-aligned layer: everything inside moves exactly like the video (used for the cut-out too). */
 const Framed: React.FC<{ v: Visual; sb: Storyboard; t: number; children: React.ReactNode }> = ({ v, sb, t, children }) => {
   const cam = cameraAt(sb.camera, t, easeInOut);
-  const win = computeWindow(v.srcW, v.srcH, sb.width, sb.height, v.framing, cam, FACE_TARGET);
+  const win = personWindow(layoutAt(sb.layouts, t), v.srcW, v.srcH, sb.width, sb.height, v.framing, cam);
   return (
     <div style={{ position: "absolute", left: 0, top: 0, width: v.srcW, height: v.srcH, transformOrigin: "0 0", transform: `translate(${win.offX}px, ${win.offY}px) scale(${win.scale})` }}>
       {children}
+    </div>
+  );
+};
+
+/** The other part of a circle / split layout: photo (slow push), clip or brand graphic. */
+const Secondary: React.FC<{ l: Layout; sb: Storyboard }> = ({ l, sb }) => {
+  const frame = useCurrentFrame();
+  const b = secondaryBox(l.kind, sb.width, sb.height);
+  const push = 1 + 0.06 * (frame / Math.max(1, (l.end - l.start) * sb.fps));
+  return (
+    <div style={{ position: "absolute", left: b.x, top: b.y, width: b.w, height: b.h, overflow: "hidden", backgroundColor: "#141414" }}>
+      {l.secondaryKind === "graphic" || !l.secondary ? (
+        <Graphic sb={sb} />
+      ) : l.secondaryKind === "photo" ? (
+        <Img src={staticFile(l.secondary)} style={{ width: "100%", height: "100%", objectFit: "cover", transform: `scale(${push})` }} />
+      ) : (
+        <Video src={staticFile(l.secondary)} muted objectFit="cover" style={{ width: "100%", height: "100%" }} />
+      )}
     </div>
   );
 };
@@ -66,17 +85,54 @@ const VisualLayer: React.FC<{ v: Visual; sb: Storyboard }> = ({ v, sb }) => {
   const frame = useCurrentFrame(); // local to the Sequence
   const t = v.start + frame / sb.fps;
   if (v.kind === "graphic") return <Graphic sb={sb} />;
+  const kind = layoutAt(sb.layouts, t);
+  const box = personBox(kind, sb.width, sb.height);
+  const clip = kind === "circle" ? `circle(${box.w / 2}px at ${box.x + box.w / 2}px ${box.y + box.h / 2}px)` : kind === "split" ? `inset(${box.y}px 0 0 0)` : "none";
+  const f = (s: number) => Math.round(s * sb.fps);
   return (
     <AbsoluteFill style={{ backgroundColor: "#141414", overflow: "hidden" }}>
-      {v.fill ? <Video src={staticFile(v.fill)} muted objectFit="cover" style={{ position: "absolute", width: "100%", height: "100%" }} trimBefore={Math.round(v.srcStart * sb.fps)} /> : null}
-      <Framed v={v} sb={sb} t={t}>
-        {v.kind === "video" && v.src ? (
-          <Video src={staticFile(v.src)} muted trimBefore={Math.round(v.srcStart * sb.fps)} style={{ width: v.srcW, height: v.srcH }} />
-        ) : v.src ? (
-          <Img src={staticFile(v.src)} style={{ width: v.srcW, height: v.srcH }} />
-        ) : null}
-      </Framed>
+      {sb.layouts.filter((l) => l.end > v.start && l.start < v.end && l.kind !== "full").map((l) => (
+        <Sequence key={l.id} from={f(l.start - v.start)} durationInFrames={Math.max(1, f(l.end) - f(l.start))}>
+          <Secondary l={l} sb={sb} />
+        </Sequence>
+      ))}
+      {v.fill && kind === "full" ? <Video src={staticFile(v.fill)} muted objectFit="cover" style={{ position: "absolute", width: "100%", height: "100%" }} trimBefore={Math.round(v.srcStart * sb.fps)} /> : null}
+      <AbsoluteFill style={{ clipPath: clip }}>
+        <Framed v={v} sb={sb} t={t}>
+          {v.kind === "video" && v.src ? (
+            <Video src={staticFile(v.src)} muted trimBefore={Math.round(v.srcStart * sb.fps)} style={{ width: v.srcW, height: v.srcH }} />
+          ) : v.src ? (
+            <Img src={staticFile(v.src)} style={{ width: v.srcW, height: v.srcH }} />
+          ) : null}
+        </Framed>
+      </AbsoluteFill>
+      {kind === "circle" ? (
+        <div style={{ position: "absolute", left: box.x - 6, top: box.y - 6, width: box.w + 12, height: box.h + 12, borderRadius: "50%", border: `10px solid ${sb.style.colors.accent === "#141414" ? "#FFFFFF" : "#FFFFFF"}`, boxShadow: `0 0 0 4px ${sb.style.colors.accent}, 0 24px 60px rgba(0,0,0,0.45)` }} />
+      ) : null}
+      {kind === "split" ? <div style={{ position: "absolute", left: 0, top: box.y - 4, width: sb.width, height: 8, background: sb.style.colors.accent }} /> : null}
     </AbsoluteFill>
+  );
+};
+
+/** Badge with a line icon that draws itself, pops in and floats. */
+const IconBadge: React.FC<{ ic: Icon; sb: Storyboard }> = ({ ic, sb }) => {
+  const frame = useCurrentFrame();
+  const { fps } = useVideoConfig();
+  const dur = (ic.end - ic.start) * fps;
+  const pop = spring({ frame, fps, config: { damping: 12, stiffness: 180 } });
+  const draw = interpolate(frame, [3, 20], [0, 1], { extrapolateLeft: "clamp", extrapolateRight: "clamp" });
+  const out = interpolate(frame, [dur - 7, dur], [1, 0], { extrapolateLeft: "clamp", extrapolateRight: "clamp" });
+  const d = ic.size * sb.width;
+  const paths = ICONS[ic.name] ?? [];
+  const floatY = Math.sin(frame / 9) * d * 0.03;
+  return (
+    <div style={{ position: "absolute", left: ic.x * sb.width - d / 2, top: ic.y * sb.height - d / 2 + floatY, width: d, height: d, borderRadius: "50%", background: sb.style.colors.accent, boxShadow: "0 14px 40px rgba(0,0,0,0.35)", display: "flex", alignItems: "center", justifyContent: "center", transform: `scale(${pop * out}) rotate(${(1 - pop) * -20}deg)`, opacity: out }}>
+      <svg width={d * 0.58} height={d * 0.58} viewBox="0 0 24 24" fill="none" stroke={sb.style.colors.onAccent} strokeWidth={1.9} strokeLinecap="round" strokeLinejoin="round">
+        {paths.map((p, i) => (
+          <path key={i} d={p} pathLength={1} strokeDasharray={1} strokeDashoffset={1 - draw} />
+        ))}
+      </svg>
+    </div>
   );
 };
 
@@ -278,6 +334,11 @@ export const Edit: React.FC<EditProps> = ({ storyboard: sb, guides, useMattes })
       {sb.behindText.map((b) => (
         <Sequence key={b.id} from={f(b.start)} durationInFrames={Math.max(1, f(b.end) - f(b.start))}>
           <BehindTextLayer b={b} sb={sb} useMattes={useMattes} />
+        </Sequence>
+      ))}
+      {sb.icons.map((ic) => (
+        <Sequence key={ic.id} from={f(ic.start)} durationInFrames={Math.max(1, f(ic.end) - f(ic.start))}>
+          <IconBadge ic={ic} sb={sb} />
         </Sequence>
       ))}
       {sb.captions.map((c) => (

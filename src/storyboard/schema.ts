@@ -69,6 +69,35 @@ export const CalloutSchema = z.object({
   y: z.number(),
 });
 
+/** Screen layout over a time range. Default (no entry) = full frame. */
+export const LayoutSchema = z.object({
+  id: z.string(),
+  start: Sec,
+  end: Sec,
+  /** full = person fills the frame; circle = person in a round frame over a background;
+   *  split = screen split in two: top = secondary visual, bottom = person. */
+  kind: z.enum(["full", "circle", "split"]),
+  /** Project-relative photo/video for the other part (null = brand graphic background). */
+  secondary: z.string().nullable(),
+  secondaryKind: z.enum(["photo", "video", "graphic"]),
+  secondaryW: z.number().positive(),
+  secondaryH: z.number().positive(),
+});
+
+/** Animated line icon tied to a word in the speech. */
+export const IconSchema = z.object({
+  id: z.string(),
+  start: Sec,
+  end: Sec,
+  name: z.string(),
+  /** Centre, normalised. */
+  x: z.number(),
+  y: z.number(),
+  /** Diameter as fraction of frame width. */
+  size: z.number(),
+  word: z.string(),
+});
+
 export const SfxSchema = z.object({
   t: Sec,
   kind: z.enum(["pop", "whoosh", "tick", "soft", "riser"]),
@@ -113,6 +142,8 @@ export const StoryboardSchema = z.object({
   captions: z.array(CaptionSchema),
   behindText: z.array(BehindTextSchema),
   callouts: z.array(CalloutSchema),
+  layouts: z.array(LayoutSchema),
+  icons: z.array(IconSchema),
   sfx: z.array(SfxSchema),
   progressBar: z.boolean(),
   scenes: z.array(SceneSchema),
@@ -128,6 +159,8 @@ export type CameraKey = z.infer<typeof CameraKeySchema>;
 export type BehindText = z.infer<typeof BehindTextSchema>;
 export type Callout = z.infer<typeof CalloutSchema>;
 export type Sfx = z.infer<typeof SfxSchema>;
+export type Layout = z.infer<typeof LayoutSchema>;
+export type Icon = z.infer<typeof IconSchema>;
 export type Check = z.infer<typeof CheckSchema>;
 export type Scene = z.infer<typeof SceneSchema>;
 export type Storyboard = z.infer<typeof StoryboardSchema>;
@@ -144,4 +177,9 @@ export function cameraAt(keys: CameraKey[], t: number, easeFn: (x: number) => nu
     return { zoom: k.zoom + (next.zoom - k.zoom) * p, ax: k.ax + (next.ax - k.ax) * p, ay: k.ay + (next.ay - k.ay) * p };
   }
   return { zoom: k.zoom, ax: k.ax, ay: k.ay };
+}
+
+/** Layout kind active at time t (full when none). */
+export function layoutAt(layouts: Layout[], t: number): Layout["kind"] {
+  return layouts.find((l) => t >= l.start && t < l.end)?.kind ?? "full";
 }

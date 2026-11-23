@@ -2,6 +2,7 @@
  * npm run plan -- <id> [--style brand|minimal|kinetic|glass|lime] [--format 9:16|16:9|4:5|1:1]
  *   [--platform reels|stories|shorts|tiktok|feed|square|youtube] [--text <color>] [--accent <color>]
  *   [--position auto|top|middle|bottom] [--no-behind] [--no-sfx] [--no-progress] [--energy 0|1|2]
+ *   [--layout auto|full|circle|split] [--no-icons]
  *
  * Builds the edit plan (storyboard.json) from the transcript, face analysis and options.
  * Runs analysis/transcription automatically if they are missing. Any re-plan revokes approval.
@@ -50,6 +51,8 @@ main(async () => {
     sfx: opt["no-sfx"] ? false : opt.sfx ? true : prev.sfx,
     progressBar: opt["no-progress"] ? false : opt.progress ? true : prev.progressBar,
     cameraEnergy: str(opt.energy) ? (Number(opt.energy) as 0 | 1 | 2) : prev.cameraEnergy,
+    layout: (str(opt.layout) as PlanOptions["layout"]) ?? prev.layout ?? "auto",
+    icons: opt["no-icons"] ? false : opt.icons ? true : prev.icons ?? true,
     colors: {
       ...(str(opt.style) ? {} : prev.colors),
       ...(str(opt.text) ? { text: resolveColor(str(opt.text)!) } : {}),
@@ -87,6 +90,7 @@ main(async () => {
   out({
     id, version: sb.version, format: sb.format, platform: sb.platform, style: sb.style.preset, durationSec: sb.durationSec,
     scenes: sb.scenes.length, captions: sb.captions.length, behindText: sb.behindText.map((b) => b.text), sfx: sb.sfx.length,
+    layouts: sb.layouts.map((l) => `${l.kind} ${l.start}-${l.end}`), icons: sb.icons.map((i) => `${i.name}:${i.word}`),
     approvalRevoked: revoked, errors: errors.length, warnings: sb.checks.length - errors.length,
     checks: sb.checks.map((c) => `${c.level.toUpperCase()}: ${c.message}`),
   });

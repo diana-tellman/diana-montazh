@@ -13,5 +13,5 @@ export const EXAMPLE_STORYBOARD: Storyboard = {
     { id: "c1", start: 0.2, end: 2, y: 0.6, scale: 1, lines: [[{ text: "Сәлеметсіз", start: 0.2, end: 0.9, emphasis: false }, { text: "бе!", start: 0.9, end: 1.4, emphasis: false }]] },
     { id: "c2", start: 2, end: 4, y: 0.6, scale: 1, lines: [[{ text: "Қысқа", start: 2, end: 2.6, emphasis: false }, { text: "видео", start: 2.6, end: 3.2, emphasis: true }]] },
   ],
-  behindText: [], callouts: [], sfx: [], progressBar: true, scenes: [], checks: [], transcriptNote: "",
+  behindText: [], callouts: [], layouts: [], icons: [], sfx: [], progressBar: true, scenes: [], checks: [], transcriptNote: "",
 };

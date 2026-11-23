@@ -40,7 +40,7 @@ ANALYSIS → STORYBOARD → APPROVAL → RENDER → COVER → QUALITY CONTROL �
 | зависимости | SessionStart-хук ставит сам; иначе `npm ci` |
 | файл по ссылке | `npm run fetch -- <url>` |
 | проект | `npm run new -- --name <имя> --lang kk|ru|en [--script <txt>] [--voice <файл>] <файлы…>` (код 3 = задать вопрос) |
-| план | `npm run plan -- <id> [--style …] [--text …] [--accent …] [--format …] [--platform …] [--position …] [--no-behind] [--no-sfx] [--no-progress] [--energy 0-2]` (сам вызовет transcribe и analyze) |
+| план | `npm run plan -- <id> [--style …] [--text …] [--accent …] [--format …] [--platform …] [--position …] [--no-behind] [--no-sfx] [--no-progress] [--energy 0-2] [--layout auto|full|circle|split] [--no-icons]` (сам вызовет transcribe и analyze) |
 | сториборд | `npm run storyboard -- <id>` → отправить `contact-sheet.jpg` и `storyboard.html` |
 | одобрение | `npm run approve -- <id>` (только после слов пользователя) |
 | рендер | `npm run render -- <id> [--max-mb 90]` |

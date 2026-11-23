@@ -22,7 +22,7 @@ description: Главный режиссёр монтажа. Используй,
 - Если пользователь даёт текст сценария: сохрани его в файл; слова-акценты отметь `*так*`.
 
 **3. План.** `npm run plan -- <id> [опции]` — сам запустит распознавание речи и анализ лица.
-Опции из пожеланий/вкусов: `--style brand|minimal|kinetic|glass|lime`, `--text <цвет>`, `--accent <цвет>`, `--format 9:16|4:5|1:1|16:9`, `--platform reels|stories|shorts|tiktok|feed|youtube`, `--position auto|top|middle|bottom`, `--no-behind`, `--no-sfx`, `--no-progress`, `--energy 0|1|2`. Подробнее — skills `smart-layout`, `kinetic-typography`, `smart-captions`.
+Опции из пожеланий/вкусов: `--style brand|minimal|kinetic|glass|lime`, `--text <цвет>`, `--accent <цвет>`, `--format 9:16|4:5|1:1|16:9`, `--platform reels|stories|shorts|tiktok|feed|youtube`, `--position auto|top|middle|bottom`, `--no-behind`, `--no-sfx`, `--no-progress`, `--energy 0|1|2`, `--layout auto|full|circle|split`, `--no-icons`. Доп. фото/клипы к своему видео → автоматически split-screen моменты. Подробнее — skills `smart-layout`, `kinetic-typography`, `smart-captions`.
 
 **4. Сториборд.** `npm run storyboard -- <id>` → посмотри `storyboard/contact-sheet.jpg` сам (Read), исправь очевидное, затем отправь пользователю **contact-sheet.jpg** и **storyboard.html** через SendUserFile. Коротко перечисли: длительность, стиль, сцены, предупреждения, и спроси: «Мақұлдайсыз ба? / Одобряете?».
 **Стоп. Дальше — только после явного «мақұлдаймын / одобряю / ок / иә, жасай бер».**

@@ -1,11 +1,11 @@
 import type { Faces } from "../analysis/faces";
-import { computeWindow, easeInOut, mapRect } from "../layout/frame";
+import { easeInOut, mapRect } from "../layout/frame";
 import { captionBand, overlaps, safeZone, type Rect } from "../layout/safeZones";
 import { STYLES } from "../design/styles";
-import { cameraAt, type Check, type Storyboard } from "../storyboard/schema";
+import { cameraAt, layoutAt, type Check, type Storyboard } from "../storyboard/schema";
+import { clipToPerson, personWindow } from "../layout/person";
 import { estTextWidth } from "./planner";
 
-const FACE_TARGET = { x: 0.5, y: 0.36 };
 
 /** Face/head boxes in output coordinates at time t (for checks and storyboard guides). */
 export function faceBoxesAt(sb: Storyboard, faces: Faces | null, t: number, pad = 0): Rect[] {
@@ -14,10 +14,11 @@ export function faceBoxesAt(sb: Storyboard, faces: Faces | null, t: number, pad 
   if (!v || v.kind !== "video") return [];
   const s = faces.samples.reduce((b, x) => (Math.abs(x.t - t) < Math.abs(b.t - t) ? x : b), faces.samples[0]!);
   if (!s?.face || Math.abs(s.t - t) > 0.5) return [];
-  const win = computeWindow(v.srcW, v.srcH, sb.width, sb.height, v.framing, cameraAt(sb.camera, t, easeInOut), FACE_TARGET);
+  const win = personWindow(layoutAt(sb.layouts, t), v.srcW, v.srcH, sb.width, sb.height, v.framing, cameraAt(sb.camera, t, easeInOut));
   const fw = s.face.x1 - s.face.x0;
   // Protected zone = face oval widened for hair/ears, from the real head top to the chin.
-  const r = mapRect({ x0: s.face.x0 - fw * 0.18, x1: s.face.x1 + fw * 0.18, y0: s.face.headTop, y1: s.face.chinY }, v.srcW, v.srcH, sb.width, sb.height, win);
+  const r = clipToPerson(mapRect({ x0: s.face.x0 - fw * 0.18, x1: s.face.x1 + fw * 0.18, y0: s.face.headTop, y1: s.face.chinY }, v.srcW, v.srcH, sb.width, sb.height, win), layoutAt(sb.layouts, t), sb.width, sb.height);
+  if (r.y1 <= r.y0 || r.x1 <= r.x0) return [];
   return [{ x0: r.x0 - pad, x1: r.x1 + pad, y0: r.y0 - pad, y1: r.y1 + pad }];
 }
 
@@ -41,7 +42,7 @@ export function validateStoryboard(sb: Storyboard, faces: Faces | null, baseChec
     if (box.x0 < band.x0 - 0.01 || box.x1 > band.x1 + 0.01 || box.y0 < safe.y0 - 0.002 || box.y1 > safe.y1 + 0.002)
       checks.push({ level: "error", code: "caption_safe", at: c.start, message: `Субтитр ${label} выходит из безопасной зоны.` });
     if (c.scale < 0.72) checks.push({ level: "warn", code: "caption_small", at: c.start, message: `Субтитр ${label} мельче минимума читаемости.` });
-    for (let t = c.start; t <= c.end; t += 0.2) {
+    for (let t = c.start; t < c.end - 0.001; t += 0.2) {
       const fb = faceBoxesAt(sb, faces, t);
       if (fb.some((f) => overlaps(box, f, 0.0005))) {
         checks.push({ level: "error", code: "caption_face", at: c.start, message: `Субтитр ${label} перекрывает лицо около ${t.toFixed(1)} с.` });
@@ -49,6 +50,16 @@ export function validateStoryboard(sb: Storyboard, faces: Faces | null, baseChec
       }
     }
     if (c.end > sb.durationSec + 0.05 || c.start >= c.end) checks.push({ level: "error", code: "timing", at: c.start, message: `Неверное время субтитра ${label}.` });
+  }
+  for (const ic of sb.icons) {
+    const r = ic.size / 2;
+    const box = { x0: ic.x - r, x1: ic.x + r, y0: ic.y - (r * sb.width) / sb.height, y1: ic.y + (r * sb.width) / sb.height };
+    for (let t = ic.start; t < ic.end - 0.001; t += 0.3) {
+      if (faceBoxesAt(sb, faces, t).some((f) => overlaps(box, f, 0.0005))) {
+        checks.push({ level: "error", code: "caption_face", at: ic.start, message: `Иконка «${ic.name}» перекрывает лицо.` });
+        break;
+      }
+    }
   }
   for (const b of sb.behindText) {
     const hh = (b.size * sb.width) / sb.height;

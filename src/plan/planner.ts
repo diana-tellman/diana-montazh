@@ -7,7 +7,10 @@ import { chooseFraming, computeWindow, easeInOut, mapRect, type Framing } from "
 import { captionBand, inside, overlaps, safeZone, type Platform, type Rect } from "../layout/safeZones";
 import type { Transcript } from "../speech/transcript";
 import type { BehindText, CameraKey, Caption, Check, Scene, Sfx, Storyboard, Visual } from "../storyboard/schema";
-import { cameraAt } from "../storyboard/schema";
+import { cameraAt, layoutAt } from "../storyboard/schema";
+import type { Icon, Layout } from "../storyboard/schema";
+import { clipToPerson, personWindow } from "../layout/person";
+import { iconForWord } from "../design/icons";
 import { groupPhrases, parseEmphasis, splitLines, type TWord } from "./phrases";
 
 export type PlanOptions = {
@@ -21,10 +24,14 @@ export type PlanOptions = {
   progressBar: boolean;
   /** 0 = static camera, 1 = normal, 2 = energetic. */
   cameraEnergy: 0 | 1 | 2;
+  /** auto = split-screen moments when extra photos/clips exist; or force one layout for the whole video. */
+  layout: "auto" | "full" | "circle" | "split";
+  /** Animated icons on matching words. */
+  icons: boolean;
 };
 
 export const DEFAULT_OPTIONS: PlanOptions = {
-  format: "9:16", platform: "reels", style: "brand", captionPosition: "auto", behindText: true, sfx: true, progressBar: true, cameraEnergy: 1,
+  format: "9:16", platform: "reels", style: "brand", captionPosition: "auto", behindText: true, sfx: true, progressBar: true, cameraEnergy: 1, layout: "auto", icons: true,
 };
 
 export type PlanInput = {
@@ -176,19 +183,63 @@ export function buildStoryboard(inp: PlanInput, version = 1): Storyboard {
   }
   camera.sort((a, b) => a.t - b.t);
 
+  /** On-screen window of caption i (same formula as the caption builder below). */
+  const capWindow = (i: number) => {
+    const p = phrases[i]!;
+    const start = Math.max(0, p[0]!.start - 0.05);
+    const nextStart = phrases[i + 1]?.[0]!.start ?? duration;
+    const lastEnd = p.at(-1)!.end;
+    const end = nextStart - lastEnd < 1.0 ? Math.max(nextStart - 0.05, start + 0.5) : Math.min(nextStart, Math.max(lastEnd + 0.35, start + 1.0));
+    return { start, end };
+  };
+
+  // ---------- layouts (person full / in a circle / split screen) ----------
+  const layouts: Layout[] = [];
+  const secondaries = project.mode === "expert-video" ? project.assets.filter((a) => a.role === "photo" || a.role === "broll-video") : [];
+  const sec = (i: number) => {
+    const a = secondaries[i % Math.max(1, secondaries.length)];
+    if (!a?.info.video) return { secondary: null, secondaryKind: "graphic" as const, secondaryW: W, secondaryH: H };
+    return { secondary: a.prepared, secondaryKind: a.role === "photo" ? ("photo" as const) : ("video" as const), secondaryW: a.info.video.width, secondaryH: a.info.video.height };
+  };
+  if (project.mode === "expert-video") {
+    if (o.layout === "circle" || o.layout === "split") {
+      const n = Math.max(1, secondaries.length);
+      for (let i = 0; i < n; i++) layouts.push({ id: `l${i + 1}`, start: r3((i * duration) / n), end: r3(((i + 1) * duration) / n), kind: o.layout, ...sec(i) });
+    } else if (o.layout === "auto" && secondaries.length) {
+      // One split-screen moment per extra photo/clip, on phrase boundaries, spread across the video.
+      // Boundaries coincide with caption boundaries, so no caption straddles two layouts.
+      secondaries.forEach((_, i) => {
+        const ideal = ((i + 1) * duration) / (secondaries.length + 1);
+        let a = 0;
+        phrases.forEach((p, k) => {
+          if (Math.abs(p[0]!.start - ideal) < Math.abs(phrases[a]![0]!.start - ideal)) a = k;
+        });
+        let b = a;
+        while (b + 1 < phrases.length && capWindow(b).end - capWindow(a).start < 2.5) b++;
+        const start = capWindow(a).start;
+        const end = Math.min(duration, capWindow(b).end);
+        if (layouts.some((l) => start < l.end + 1 && end > l.start - 1)) return;
+        layouts.push({ id: `l${layouts.length + 1}`, start: r3(start), end: r3(end), kind: "split", ...sec(i) });
+      });
+    }
+  }
+
   // Face zone in OUTPUT coordinates over an interval (union of sampled positions).
   const faceZoneOut = (t0: number, t1: number, pad = 0.025): Rect | null => {
     if (!faces) return null;
     let z: Rect | null = null;
     for (const s of faces.samples) {
       if (!s.face || s.t < t0 - 0.2 || s.t > t1 + 0.2) continue;
+      // The safety margin never reaches into a different layout.
+      if (layoutAt(layouts, s.t) !== layoutAt(layouts, Math.min(t1 - 0.001, Math.max(t0, s.t)))) continue;
       const v = visualAt(s.t);
       if (v.kind !== "video") continue;
       const cam = cameraAt(camera, s.t, easeInOut);
-      const win = computeWindow(v.srcW, v.srcH, W, H, v.framing, cam, FACE_TARGET);
+      const win = personWindow(layoutAt(layouts, s.t), v.srcW, v.srcH, W, H, v.framing, cam);
       const f = s.face;
       const fw = f.x1 - f.x0;
-      const r = mapRect({ x0: f.x0 - fw * 0.18, x1: f.x1 + fw * 0.18, y0: f.headTop, y1: f.chinY }, v.srcW, v.srcH, W, H, win);
+      const r = clipToPerson(mapRect({ x0: f.x0 - fw * 0.18, x1: f.x1 + fw * 0.18, y0: f.headTop, y1: f.chinY }, v.srcW, v.srcH, W, H, win), layoutAt(layouts, s.t), W, H);
+      if (r.y1 <= r.y0 || r.x1 <= r.x0) continue;
       z = z ? { x0: Math.min(z.x0, r.x0), x1: Math.max(z.x1, r.x1), y0: Math.min(z.y0, r.y0), y1: Math.max(z.y1, r.y1) } : r;
     }
     return z ? { x0: z.x0 - pad, x1: z.x1 + pad, y0: z.y0 - pad, y1: z.y1 + pad } : null;
@@ -199,11 +250,10 @@ export function buildStoryboard(inp: PlanInput, version = 1): Storyboard {
   const baseFont = st.size * short;
   let prevY: number | null = null;
   phrases.forEach((p, i) => {
-    const start = r3(Math.max(0, p[0]!.start - 0.05));
-    const nextStart = phrases[i + 1]?.[0]!.start ?? duration;
-    // Keep the caption on screen through short pauses (< 1 s) so text does not blink off.
-    const lastEnd = p.at(-1)!.end;
-    const end = r3(nextStart - lastEnd < 1.0 ? Math.max(nextStart - 0.05, start + 0.5) : Math.min(nextStart, Math.max(lastEnd + 0.35, start + 1.0)));
+    const cw = capWindow(i);
+    const start = r3(cw.start);
+    // Keeps the caption on screen through short pauses (< 1 s) so text does not blink off.
+    const end = r3(cw.end);
     const lines = splitLines(p, st.maxCharsPerLine);
     const zone = faceZoneOut(start, end);
     const band = captionBand(safe);
@@ -231,6 +281,7 @@ export function buildStoryboard(inp: PlanInput, version = 1): Storyboard {
         // Default: as low as possible while staying above the platform's blind zone.
         cands.push(safe.y1 - h);
         if (zone) cands.push(zone.y1 + 0.015);
+        if (layoutAt(layouts, start + 0.05) === "split") cands.push(0.5 - h - 0.012, 0.5 - h / 2);
         cands.push(0.62, zone ? zone.y0 - 0.015 - h : 0.25, safe.y0);
       }
       const ok = cands.map((y) => Math.max(safe.y0, Math.min(safe.y1 - h, y))).find((y) => fits(scale, y));
@@ -261,6 +312,7 @@ export function buildStoryboard(inp: PlanInput, version = 1): Storyboard {
       if (!w || w.start < 1.5 || w.start - lastT < 12 || w.start > duration - 2) continue;
       const t0 = w.start;
       const t1 = Math.min(duration, t0 + 1.9);
+      if (layouts.some((l) => l.kind !== "full" && t0 < l.end && t1 > l.start)) continue;
       const z = faceZoneOut(t0, t1, 0);
       if (!z) continue;
       const word = w.text.replace(/[^\p{L}\p{N}%]/gu, "").toUpperCase();
@@ -273,6 +325,35 @@ export function buildStoryboard(inp: PlanInput, version = 1): Storyboard {
     }
   }
 
+  // ---------- icons on matching words ----------
+  const icons: Icon[] = [];
+  if (o.icons) {
+    const band = captionBand(safe);
+    const maxIcons = Math.max(1, Math.ceil(duration / 4.5));
+    for (const w of words) {
+      if (icons.length >= maxIcons) break;
+      const name = iconForWord(w.text);
+      if (!name || icons.some((ic) => w.start - ic.start < 3.5) || w.start > duration - 1) continue;
+      const t0 = Math.max(0, w.start - 0.1);
+      const t1 = Math.min(duration, t0 + 1.8);
+      if (behindText.some((b) => t0 < b.end && t1 > b.start)) continue;
+      const size = 0.17;
+      const r = size / 2;
+      const rh = (r * W) / H;
+      const zone = faceZoneOut(t0, t1);
+      const caps = captions.filter((c) => c.start < t1 && c.end > t0).map((c) => ({ x0: 0.1, x1: 0.9, y0: c.y - 0.01, y1: c.y + (c.lines.length * st.size * short * c.scale * st.lineHeight + st.size * short * 0.5) / H + 0.01 }));
+      const cands: Array<[number, number]> = zone
+        ? [[0.5, zone.y0 - rh - 0.015], [zone.x1 + r + 0.03, (zone.y0 + zone.y1) / 2], [zone.x0 - r - 0.03, (zone.y0 + zone.y1) / 2], [0.5, safe.y0 + rh + 0.02]]
+        : [[0.5, 0.3], [0.5, safe.y0 + rh + 0.04]];
+      const ok = cands.find(([x, y]) => {
+        const box = { x0: x - r, x1: x + r, y0: y - rh, y1: y + rh };
+        return box.x0 >= band.x0 && box.x1 <= band.x1 && box.y0 >= safe.y0 && box.y1 <= safe.y1 && !(zone && overlaps(box, zone)) && !caps.some((c) => overlaps(box, c));
+      });
+      if (!ok) continue;
+      icons.push({ id: `i${icons.length + 1}`, start: r3(t0), end: r3(t1), name, x: r3(ok[0]), y: r3(ok[1]), size, word: w.text });
+    }
+  }
+
   // ---------- SFX (sparse, under the voice) ----------
   const sfx: Sfx[] = [];
   if (o.sfx) {
@@ -281,6 +362,8 @@ export function buildStoryboard(inp: PlanInput, version = 1): Storyboard {
       sfx.push({ t: r3(t), kind, gain, reason });
     };
     behindText.forEach((b) => add(b.start - 0.12, "whoosh", 0.2, `Жазу бастың артында: ${b.text}`));
+    layouts.forEach((l) => add(l.start - 0.08, "whoosh", 0.16, `Макет: ${l.kind}`));
+    icons.forEach((ic) => add(ic.start, "pop", 0.16, `Иконка: ${ic.name}`));
     camera.filter((k) => k.move === "cut" && k.t > 0.3).forEach((k) => add(k.t - 0.05, "soft", 0.14, "Склейка/смена плана"));
     captions.forEach((c) => {
       const e = c.lines.flat().find((w) => w.emphasis);
@@ -321,6 +404,8 @@ export function buildStoryboard(inp: PlanInput, version = 1): Storyboard {
     const s1 = bounds[i + 1] ?? duration;
     const caps = captions.filter((c) => c.start < s1 && c.end > s0);
     const bt = behindText.filter((b) => b.start < s1 && b.end > s0);
+    const lay = layouts.filter((l) => l.start < s1 && l.end > s0);
+    const ics = icons.filter((x) => x.start < s1 && x.end > s0);
     const fx = sfx.filter((x) => x.t >= s0 && x.t < s1);
     // Show a caption fully spoken (all words visible), preferring one with an emphasis word.
     const inScene = caps.filter((c) => c.lines.flat().at(-1)!.end > s0 && c.lines.flat().at(-1)!.start < s1 - 0.05);
@@ -329,7 +414,7 @@ export function buildStoryboard(inp: PlanInput, version = 1): Storyboard {
     const keyT = bt[0]
       ? Math.min(s1 - 0.05, bt[0].start + 0.9)
       : keyCap && lastW
-        ? Math.max(s0, Math.min(s1 - 0.05, keyCap.end - 0.05, lastW.start + Math.max(0.08, (lastW.end - lastW.start) * 0.6)))
+        ? Math.max(s0, Math.min(s1 - 0.05, keyCap.end - 0.3, lastW.start + Math.max(0.08, (lastW.end - lastW.start) * 0.6)))
         : (s0 + s1) / 2;
     const cam = cameraAt(camera, keyT, easeInOut);
     const v = visualAt(keyT);
@@ -338,7 +423,7 @@ export function buildStoryboard(inp: PlanInput, version = 1): Storyboard {
       title: bt[0] ? `Жазу артта: ${bt[0].text}` : caps[0] ? caps[0].lines.flat().map((w) => w.text).join(" ").slice(0, 40) : "—",
       onScreenText: caps.map((c) => c.lines.map((l) => l.map((w) => (w.emphasis ? `*${w.text}*` : w.text)).join(" ")).join(" / ")).join(" | "),
       camera: v.kind === "video" ? `зум ×${cam.zoom.toFixed(2)}${camera.some((k) => k.move === "ease" && k.t > s0 && k.t <= s1) ? ", плавный наезд" : ""}, ${v.framing === "contain" ? "видео в рамке + размытый фон" : "лицо в верхней трети"}` : v.kind === "photo" ? "фото, медленный наезд (Ken Burns)" : "графический фон",
-      animation: `${st.label}: ${st.enter === "pop" ? "слова выпрыгивают" : st.enter === "rise" ? "слова поднимаются" : st.enter === "slide" ? "слова выезжают" : "плавное появление"}, активное слово — ${st.active === "pill" ? "плашка" : st.active === "color" ? "цвет" : st.active === "scale" ? "увеличение" : "подчёркивание"}${bt.length ? "; крупное слово за головой" : ""}`,
+      animation: `${st.label}: ${st.enter === "pop" ? "слова выпрыгивают" : st.enter === "rise" ? "слова поднимаются" : st.enter === "slide" ? "слова выезжают" : "плавное появление"}, активное слово — ${st.active === "pill" ? "плашка" : st.active === "color" ? "цвет" : st.active === "scale" ? "увеличение" : "подчёркивание"}${bt.length ? "; крупное слово за головой" : ""}${lay.length ? `; ${lay.map((l) => (l.kind === "split" ? "экран делится: сверху фото/видео, снизу вы" : l.kind === "circle" ? "вы в круге поверх фона" : "весь кадр")).join(", ")}` : ""}${ics.length ? `; иконки: ${ics.map((x) => `${x.name} («${x.word}»)`).join(", ")}` : ""}`,
       sfx: fx.length ? fx.map((x) => `${x.kind} ${x.t.toFixed(1)}с`).join(", ") : "—",
       checks: checks.filter((c) => c.at !== null && c.at >= s0 && c.at < s1),
     };
@@ -349,7 +434,7 @@ export function buildStoryboard(inp: PlanInput, version = 1): Storyboard {
     format: o.format, platform: o.platform, width: W, height: H, fps, durationSec: r3(duration),
     style: { preset: o.style, colors, captionPosition: o.captionPosition },
     voice: { src: voice.prepared, gain: 1 },
-    visuals, camera, captions, behindText, callouts: [], sfx, progressBar: o.progressBar, scenes, checks,
+    visuals, camera, captions, behindText, callouts: [], layouts, icons, sfx, progressBar: o.progressBar, scenes, checks,
     transcriptNote: transcript.notes.join(" "),
   };
 }
