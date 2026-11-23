@@ -8,7 +8,7 @@ import { captionBand, inside, overlaps, safeZone, type Platform, type Rect } fro
 import type { Transcript } from "../speech/transcript";
 import type { BehindText, CameraKey, Caption, Check, Scene, Sfx, Storyboard, Visual } from "../storyboard/schema";
 import { cameraAt, layoutAt } from "../storyboard/schema";
-import type { Icon, Layout } from "../storyboard/schema";
+import type { Beat, Icon, Layout } from "../storyboard/schema";
 import { clipToPerson, personWindow } from "../layout/person";
 import { iconForWord } from "../design/icons";
 import { groupPhrases, parseEmphasis, splitLines, type TWord } from "./phrases";
@@ -18,7 +18,7 @@ export type PlanOptions = {
   platform: Platform;
   style: StylePreset;
   colors?: Partial<Colors>;
-  captionPosition: "auto" | "top" | "middle" | "bottom";
+  captionPosition: "auto" | "top" | "middle" | "lower" | "bottom";
   behindText: boolean;
   sfx: boolean;
   progressBar: boolean;
@@ -27,13 +27,24 @@ export type PlanOptions = {
   /** Where the style comes from, e.g. "референс: ref.mp4". */
   styleSource?: string;
   /** 3D LUT colour grade (project-relative .cube) + strength, from a reference. */
-  grade?: { lut: string; strength: number; from: string } | null;
+  grade?: { lut: string; strength: number; from: string; filter?: string } | null;
   /** 0 = static camera, 1 = normal, 2 = energetic. */
   cameraEnergy: 0 | 1 | 2;
   /** auto = split-screen moments when extra photos/clips exist; or force one layout for the whole video. */
   layout: "auto" | "full" | "circle" | "split";
   /** Animated icons on matching words. */
   icons: boolean;
+  /** Authored by Claude per the meaning of the speech (storyboard/beats.json): beats, camera, layouts, sfx. */
+  authored?: Authored | null;
+};
+
+export type Authored = {
+  beats?: Beat[];
+  camera?: CameraKey[];
+  layouts?: Layout[];
+  sfx?: Sfx[];
+  /** Project-relative audio to use instead of the enhanced voice (e.g. to keep original background music). */
+  voiceSrc?: string;
 };
 
 export const DEFAULT_OPTIONS: PlanOptions = {
@@ -84,6 +95,16 @@ export function buildStoryboard(inp: PlanInput, version = 1): Storyboard {
       return { text: st.uppercase ? e.text.toUpperCase() : e.text, start: w.startMs / 1000, end: w.endMs / 1000, emphasis: e.emphasis };
     }),
   );
+  // Words shown as a big headline are not repeated in the captions.
+  const norm = (x: string) => x.toLowerCase().replace(/ё/g, "е").replace(/[^\p{L}\p{N}]/gu, "");
+  for (const b of o.authored?.beats ?? []) {
+    if (b.kind !== "headline" || !b.hideWords) continue;
+    const hw = new Set(b.lines.flatMap((l) => l.text.split(/\s+/)).map(norm));
+    for (let i = words.length - 1; i >= 0; i--) {
+      const w = words[i]!;
+      if (w.start >= b.start - 0.4 && w.start < b.end && hw.has(norm(w.text))) words.splice(i, 1);
+    }
+  }
   const phrases = groupPhrases(words, { maxWords: st.maxWordsPerPhrase, maxChars: st.maxCharsPerLine * 2 - 2, pause: 0.45, minDur: 0.6 });
   // Auto emphasis: one long content word every ~3 phrases if the user marked none.
   if (!words.some((w) => w.emphasis && !/\d/.test(w.text))) {
@@ -190,6 +211,7 @@ export function buildStoryboard(inp: PlanInput, version = 1): Storyboard {
       shotIndex++;
     });
   }
+  if (o.authored?.camera?.length) camera.splice(0, camera.length, ...o.authored.camera);
   camera.sort((a, b) => a.t - b.t);
 
   /** On-screen window of caption i (same formula as the caption builder below). */
@@ -203,7 +225,7 @@ export function buildStoryboard(inp: PlanInput, version = 1): Storyboard {
   };
 
   // ---------- layouts (person full / in a circle / split screen) ----------
-  const layouts: Layout[] = [];
+  const layouts: Layout[] = [...(o.authored?.layouts ?? [])];
   const secondaries = project.mode === "expert-video" ? project.assets.filter((a) => a.role === "photo" || a.role === "broll-video") : [];
   const sec = (i: number) => {
     const a = secondaries[i % Math.max(1, secondaries.length)];
@@ -285,6 +307,7 @@ export function buildStoryboard(inp: PlanInput, version = 1): Storyboard {
       if (prevY !== null && o.captionPosition === "auto") cands.push(prevY);
       if (o.captionPosition === "top") cands.push(safe.y0);
       else if (o.captionPosition === "middle") cands.push(0.5 - h / 2);
+      else if (o.captionPosition === "lower") cands.push(0.585, 0.62, 0.66, safe.y1 - h);
       else if (o.captionPosition === "bottom") cands.push(safe.y1 - h);
       else {
         // Default: as low as possible while staying above the platform's blind zone.
@@ -329,7 +352,7 @@ export function buildStoryboard(inp: PlanInput, version = 1): Storyboard {
       const textH = (size * W) / H;
       const y = z.y0 + textH * 0.12; // centre slightly below head top → head covers the lower part
       if (y - textH / 2 < safe.y0 || z.y0 > 0.55) continue;
-      behindText.push({ id: `b${behindText.length + 1}`, start: r3(t0), end: r3(t1), text: word, y: r3(y), size: r3(size), matteDir: null });
+      behindText.push({ id: `b${behindText.length + 1}`, start: r3(t0), end: r3(t1), text: word, y: r3(y), size: r3(size), matteDir: null, matteStart: r3(t0) });
       lastT = t0;
     }
   }
@@ -365,6 +388,7 @@ export function buildStoryboard(inp: PlanInput, version = 1): Storyboard {
 
   // ---------- SFX (sparse, under the voice) ----------
   const sfx: Sfx[] = [];
+  const beats: Beat[] = o.authored?.beats ?? [];
   if (o.sfx) {
     const add = (t: number, kind: Sfx["kind"], gain: number, reason: string) => {
       if (t < 0.15 || t > duration - 0.2 || sfx.some((s) => Math.abs(s.t - t) < 1.0)) return;
@@ -378,7 +402,9 @@ export function buildStoryboard(inp: PlanInput, version = 1): Storyboard {
       const e = c.lines.flat().find((w) => w.emphasis);
       if (e) add(e.start, "pop", 0.18, `Акцент: ${e.text}`);
     });
-    sfx.sort((a, b) => a.t - b.t);
+  }
+  if (o.authored?.sfx?.length) {
+    sfx.push(...o.authored.sfx);
   }
 
   // ---------- checks ----------
@@ -443,8 +469,8 @@ export function buildStoryboard(inp: PlanInput, version = 1): Storyboard {
     format: o.format, platform: o.platform, width: W, height: H, fps, durationSec: r3(duration),
     style: { preset: o.style, colors, captionPosition: o.captionPosition, overrides: o.styleOverrides ?? {}, source: o.styleSource ?? o.style },
     grade: o.grade ?? null,
-    voice: { src: voice.prepared, gain: 1 },
-    visuals, camera, captions, behindText, callouts: [], layouts, icons, sfx, progressBar: o.progressBar, scenes, checks,
+    voice: { src: o.authored?.voiceSrc ?? voice.prepared, gain: 1 },
+    visuals, camera, captions, behindText, callouts: [], layouts, beats, icons, sfx: [...sfx].sort((a, b) => a.t - b.t), progressBar: o.progressBar, scenes, checks,
     transcriptNote: transcript.notes.join(" "),
   };
 }

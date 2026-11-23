@@ -5,7 +5,8 @@ import { z } from "zod";
 import { ensureFontsLoaded, FONT_FAMILIES } from "../design/fonts";
 import { contrastRatio, resolveStyle, type StyleDef } from "../design/styles";
 import { easeInOut } from "../layout/frame";
-import { personBox, personWindow, secondaryBox } from "../layout/person";
+import { personBox, personRadius, personWindow, secondaryBox, type LayoutKind } from "../layout/person";
+import { BeatLayer, beatOrder, BrandBg } from "./beats";
 import { ICONS } from "../design/icons";
 import { captionBand, safeZone } from "../layout/safeZones";
 import { cameraAt, layoutAt, StoryboardSchema, type BehindText, type Callout, type Caption, type Icon, type Layout, type Storyboard, type Visual } from "../storyboard/schema";
@@ -55,13 +56,25 @@ const Graphic: React.FC<{ sb: Storyboard }> = ({ sb }) => {
 /** Source-aligned layer: everything inside moves exactly like the video (used for the cut-out too). */
 const Framed: React.FC<{ v: Visual; sb: Storyboard; t: number; children: React.ReactNode }> = ({ v, sb, t, children }) => {
   const cam = cameraAt(sb.camera, t, easeInOut);
-  const win = personWindow(layoutAt(sb.layouts, t), v.srcW, v.srcH, sb.width, sb.height, v.framing, cam);
+  const { kind, k } = layoutBlend(sb, t);
+  const a = personWindow("full", v.srcW, v.srcH, sb.width, sb.height, v.framing, cam);
+  const b2 = personWindow(kind, v.srcW, v.srcH, sb.width, sb.height, v.framing, cam);
+  const win = kind === "pip" ? { scale: a.scale + (b2.scale - a.scale) * k, offX: a.offX + (b2.offX - a.offX) * k, offY: a.offY + (b2.offY - a.offY) * k } : b2;
   return (
     <div style={{ position: "absolute", left: 0, top: 0, width: v.srcW, height: v.srcH, transformOrigin: "0 0", transform: `translate(${win.offX}px, ${win.offY}px) scale(${win.scale})` }}>
       {children}
     </div>
   );
 };
+
+/** Pip enters/leaves with a smooth 0.4 s morph from/to the full frame. */
+function layoutBlend(sb: Storyboard, t: number): { kind: LayoutKind; k: number } {
+  const l = sb.layouts.find((x) => t >= x.start && t < x.end);
+  if (!l) return { kind: "full", k: 1 };
+  if (l.kind !== "pip") return { kind: l.kind, k: 1 };
+  const e = (x: number) => 1 - (1 - Math.min(1, Math.max(0, x))) ** 3;
+  return { kind: "pip", k: Math.min(e((t - l.start) / 0.4), e((l.end - t) / 0.4)) };
+}
 
 /** The other part of a circle / split layout: photo (slow push), clip or brand graphic. */
 const Secondary: React.FC<{ l: Layout; sb: Storyboard }> = ({ l, sb }) => {
@@ -70,7 +83,9 @@ const Secondary: React.FC<{ l: Layout; sb: Storyboard }> = ({ l, sb }) => {
   const push = 1 + 0.06 * (frame / Math.max(1, (l.end - l.start) * sb.fps));
   return (
     <div style={{ position: "absolute", left: b.x, top: b.y, width: b.w, height: b.h, overflow: "hidden", backgroundColor: "#141414" }}>
-      {l.secondaryKind === "graphic" || !l.secondary ? (
+      {l.kind === "pip" && (l.secondaryKind === "graphic" || !l.secondary) ? (
+        <BrandBg sb={sb} />
+      ) : l.secondaryKind === "graphic" || !l.secondary ? (
         <Graphic sb={sb} />
       ) : l.secondaryKind === "photo" ? (
         <Img src={staticFile(l.secondary)} style={{ width: "100%", height: "100%", objectFit: "cover", transform: `scale(${push})` }} />
@@ -85,9 +100,12 @@ const VisualLayer: React.FC<{ v: Visual; sb: Storyboard }> = ({ v, sb }) => {
   const frame = useCurrentFrame(); // local to the Sequence
   const t = v.start + frame / sb.fps;
   if (v.kind === "graphic") return <Graphic sb={sb} />;
-  const kind = layoutAt(sb.layouts, t);
+  const { kind, k } = layoutBlend(sb, t);
   const box = personBox(kind, sb.width, sb.height);
-  const clip = kind === "circle" ? `circle(${box.w / 2}px at ${box.x + box.w / 2}px ${box.y + box.h / 2}px)` : kind === "split" ? `inset(${box.y}px 0 0 0)` : "none";
+  const W = sb.width;
+  const H = sb.height;
+  const ins = kind === "pip" ? { t: box.y * k, r: (W - box.x - box.w) * k, b: (H - box.y - box.h) * k, l: box.x * k, rad: personRadius("pip", W) * k } : null;
+  const clip = kind === "circle" ? `circle(${box.w / 2}px at ${box.x + box.w / 2}px ${box.y + box.h / 2}px)` : kind === "split" ? `inset(${box.y}px 0 0 0)` : ins ? `inset(${ins.t}px ${ins.r}px ${ins.b}px ${ins.l}px round ${ins.rad}px)` : "none";
   const f = (s: number) => Math.round(s * sb.fps);
   return (
     <AbsoluteFill style={{ backgroundColor: "#141414", overflow: "hidden" }}>
@@ -109,6 +127,7 @@ const VisualLayer: React.FC<{ v: Visual; sb: Storyboard }> = ({ v, sb }) => {
       {kind === "circle" ? (
         <div style={{ position: "absolute", left: box.x - 6, top: box.y - 6, width: box.w + 12, height: box.h + 12, borderRadius: "50%", border: `10px solid ${sb.style.colors.accent === "#141414" ? "#FFFFFF" : "#FFFFFF"}`, boxShadow: `0 0 0 4px ${sb.style.colors.accent}, 0 24px 60px rgba(0,0,0,0.45)` }} />
       ) : null}
+      {ins ? <div style={{ position: "absolute", left: ins.l, top: ins.t, width: W - ins.l - ins.r, height: H - ins.t - ins.b, borderRadius: ins.rad, boxShadow: `0 30px 80px rgba(0,0,0,${0.5 * k}), inset 0 0 0 2px rgba(245,245,243,${0.25 * k})` }} /> : null}
       {kind === "split" ? <div style={{ position: "absolute", left: 0, top: box.y - 4, width: sb.width, height: 8, background: sb.style.colors.accent }} /> : null}
     </AbsoluteFill>
   );
@@ -147,7 +166,7 @@ const BehindTextLayer: React.FC<{ b: BehindText; sb: Storyboard; useMattes: bool
   const enter = spring({ frame, fps, config: { damping: 16, stiffness: 140 } });
   const exit = interpolate(frame, [dur - 8, dur], [1, 0], { extrapolateLeft: "clamp", extrapolateRight: "clamp" });
   const px = b.size * sb.width;
-  const idx = String(frame + 1).padStart(5, "0");
+  const idx = String(Math.max(1, Math.round((t - b.matteStart) * fps) + 1)).padStart(5, "0");
   return (
     <AbsoluteFill>
       <div
@@ -336,6 +355,11 @@ export const Edit: React.FC<EditProps> = ({ storyboard: sb, guides, useMattes })
           <BehindTextLayer b={b} sb={sb} useMattes={useMattes} />
         </Sequence>
       ))}
+      {[...sb.beats].filter((b) => b.kind !== "shapeWipe").sort((a, b) => beatOrder(a) - beatOrder(b)).map((b) => (
+        <Sequence key={b.id} from={f(b.start)} durationInFrames={Math.max(1, f(b.end) - f(b.start))}>
+          <BeatLayer b={b} sb={sb} />
+        </Sequence>
+      ))}
       {sb.icons.map((ic) => (
         <Sequence key={ic.id} from={f(ic.start)} durationInFrames={Math.max(1, f(ic.end) - f(ic.start))}>
           <IconBadge ic={ic} sb={sb} />
@@ -349,6 +373,11 @@ export const Edit: React.FC<EditProps> = ({ storyboard: sb, guides, useMattes })
       {sb.callouts.map((c) => (
         <Sequence key={c.id} from={f(c.start)} durationInFrames={Math.max(1, f(c.end) - f(c.start))}>
           <CalloutBlock c={c} sb={sb} />
+        </Sequence>
+      ))}
+      {sb.beats.filter((b) => b.kind === "shapeWipe").map((b) => (
+        <Sequence key={b.id} from={f(b.start)} durationInFrames={Math.max(1, f(b.end) - f(b.start))}>
+          <BeatLayer b={b} sb={sb} />
         </Sequence>
       ))}
       {sb.progressBar ? <ProgressBar sb={sb} /> : null}

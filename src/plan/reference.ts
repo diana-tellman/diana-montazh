@@ -49,7 +49,7 @@ export function referenceOptions(projectRoot: string, storyboardDir: string, wor
   const o: Partial<PlanOptions> = { styleOverrides: ov, styleSource: `референс: ${r.source ?? "видео"}` };
   const colors = { text: color(r.textColor), accent: color(r.accentColor), onAccent: color(r.onAccent) };
   o.colors = Object.fromEntries(Object.entries(colors).filter(([, v]) => v)) as PlanOptions["colors"];
-  const pos = pick(r.position, ["auto", "top", "middle", "bottom"] as const);
+  const pos = pick(r.position, ["auto", "top", "middle", "lower", "bottom"] as const);
   if (pos) o.captionPosition = pos;
   if (typeof r.behindText === "boolean") o.behindText = r.behindText;
   if (typeof r.icons === "boolean") o.icons = r.icons;

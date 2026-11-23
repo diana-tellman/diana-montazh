@@ -58,6 +58,8 @@ export const BehindTextSchema = z.object({
   size: z.number(),
   /** Folder (project-relative) of RGBA person cut-out frames; filled at render time. */
   matteDir: z.string().nullable(),
+  /** Output time of the first matte frame (shared matte sequences). */
+  matteStart: z.number().default(0),
 });
 
 export const CalloutSchema = z.object({
@@ -76,7 +78,7 @@ export const LayoutSchema = z.object({
   end: Sec,
   /** full = person fills the frame; circle = person in a round frame over a background;
    *  split = screen split in two: top = secondary visual, bottom = person. */
-  kind: z.enum(["full", "circle", "split"]),
+  kind: z.enum(["full", "circle", "split", "pip"]),
   /** Project-relative photo/video for the other part (null = brand graphic background). */
   secondary: z.string().nullable(),
   secondaryKind: z.enum(["photo", "video", "graphic"]),
@@ -98,9 +100,47 @@ export const IconSchema = z.object({
   word: z.string(),
 });
 
+const T = z.number().nonnegative();
+const MatteRef = { matteDir: z.string().nullable().default(null), matteStart: z.number().default(0) };
+
+/**
+ * Motion-design beats: one meaningful visual device per speech block.
+ * - cutout: person cut out over a brand background (background replacement), with optional
+ *   before/after compare and a white outline drawn around the person.
+ * - headline: large kinetic typography (mask reveal, underline draw, highlight sweep), optionally
+ *   behind the person (depth masking); hideWords removes the same words from captions.
+ * - diagram: icon nodes connected by drawn arrows (explainer graphics).
+ * - punch: light sweep overlay synced with a camera punch (visual + sound effect demo).
+ * - shapeWipe: brand shape transition between compositions.
+ */
+export const BeatSchema = z.discriminatedUnion("kind", [
+  z.object({
+    kind: z.literal("cutout"), id: z.string(), start: T, end: T,
+    wipeIn: z.enum(["up", "circle", "none"]).default("up"), wipeOut: z.enum(["down", "circle", "none"]).default("down"),
+    compare: z.tuple([T, T]).nullable().default(null),
+    outline: z.tuple([T, T]).nullable().default(null),
+    ...MatteRef,
+  }),
+  z.object({
+    kind: z.literal("headline"), id: z.string(), start: T, end: T,
+    lines: z.array(z.object({ text: z.string(), accent: z.boolean().default(false), at: T.optional() })).min(1),
+    y: z.number(), size: z.number(), behind: z.boolean().default(false),
+    underline: z.boolean().default(false), sweep: z.boolean().default(false), hideWords: z.boolean().default(true),
+    icon: z.string().nullable().default(null),
+    ...MatteRef,
+  }),
+  z.object({
+    kind: z.literal("diagram"), id: z.string(), start: T, end: T,
+    nodes: z.array(z.object({ icon: z.string(), at: T })).min(2), y: z.number(),
+  }),
+  z.object({ kind: z.literal("punch"), id: z.string(), start: T, end: T }),
+  z.object({ kind: z.literal("shapeWipe"), id: z.string(), start: T, end: T }),
+]);
+export type Beat = z.infer<typeof BeatSchema>;
+
 export const SfxSchema = z.object({
   t: Sec,
-  kind: z.enum(["pop", "whoosh", "tick", "soft", "riser"]),
+  kind: z.enum(["pop", "whoosh", "tick", "soft", "riser", "impact", "swipe", "click"]),
   /** Linear gain (0..1) — kept well under the voice. */
   gain: z.number().min(0).max(1),
   reason: z.string(),
@@ -138,14 +178,14 @@ export const StoryboardSchema = z.object({
   style: z.object({
     preset: StylePresetSchema,
     colors: ColorsSchema,
-    captionPosition: z.enum(["auto", "top", "middle", "bottom"]),
+    captionPosition: z.enum(["auto", "top", "middle", "lower", "bottom"]),
     /** Overrides of the preset (reference video / explicit wishes). */
     overrides: StyleOverridesSchema,
     /** Short human description of where the style comes from (shown in the storyboard). */
     source: z.string(),
   }),
   /** Colour grade applied to the person's video (baked by ffmpeg), or null. */
-  grade: z.object({ lut: z.string(), strength: z.number(), from: z.string() }).nullable(),
+  grade: z.object({ lut: z.string(), strength: z.number(), from: z.string(), filter: z.string().optional() }).nullable(),
   voice: z.object({ src: z.string(), gain: z.number() }),
   visuals: z.array(VisualSchema),
   camera: z.array(CameraKeySchema),
@@ -153,6 +193,8 @@ export const StoryboardSchema = z.object({
   behindText: z.array(BehindTextSchema),
   callouts: z.array(CalloutSchema),
   layouts: z.array(LayoutSchema),
+  /** Authored motion-design beats (Claude, per meaning of the speech). */
+  beats: z.array(BeatSchema).default([]),
   icons: z.array(IconSchema),
   sfx: z.array(SfxSchema),
   progressBar: z.boolean(),

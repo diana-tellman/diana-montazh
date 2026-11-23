@@ -1,6 +1,6 @@
 import { computeWindow, type CameraState, type Framing, type Window } from "./frame";
 
-export type LayoutKind = "full" | "circle" | "split";
+export type LayoutKind = "full" | "circle" | "split" | "pip";
 export type Box = { x: number; y: number; w: number; h: number };
 
 /** Where the person goes for each layout (output px). Shared by planner, validator and composition. */
@@ -10,10 +10,21 @@ export function personBox(kind: LayoutKind, W: number, H: number): Box {
     return { x: Math.round((W - d) / 2), y: Math.round(H * 0.44 - d / 2), w: d, h: d };
   }
   if (kind === "split") return { x: 0, y: Math.round(H / 2), w: W, h: H - Math.round(H / 2) };
+  if (kind === "pip") {
+    // Rounded 4:5 card in the lower part; the upper part is free for explainer graphics.
+    const w = 2 * Math.round(W * 0.3);
+    const h = Math.round(w * 1.25);
+    return { x: Math.round((W - w) / 2), y: Math.round(H * 0.86 - h), w, h };
+  }
   return { x: 0, y: 0, w: W, h: H };
 }
 
 /** Secondary visual area (split top half / circle background). */
+/** Corner radius of the person frame (px). */
+export function personRadius(kind: LayoutKind, W: number): number {
+  return kind === "pip" ? Math.round(W * 0.045) : 0;
+}
+
 export function secondaryBox(kind: LayoutKind, W: number, H: number): Box {
   return kind === "split" ? { x: 0, y: 0, w: W, h: Math.round(H / 2) } : { x: 0, y: 0, w: W, h: H };
 }
@@ -22,7 +33,7 @@ export function secondaryBox(kind: LayoutKind, W: number, H: number): Box {
 export function personWindow(kind: LayoutKind, srcW: number, srcH: number, W: number, H: number, framing: Framing, cam: CameraState): Window {
   const b = personBox(kind, W, H);
   if (kind === "full") return computeWindow(srcW, srcH, W, H, framing, cam, { x: 0.5, y: 0.36 });
-  const win = computeWindow(srcW, srcH, b.w, b.h, "cover", { ...cam, zoom: Math.max(1, cam.zoom * 0.95) }, { x: 0.5, y: kind === "circle" ? 0.42 : 0.4 });
+  const win = computeWindow(srcW, srcH, b.w, b.h, "cover", { ...cam, zoom: Math.max(1, cam.zoom * 0.95) }, { x: 0.5, y: kind === "circle" ? 0.42 : kind === "pip" ? 0.34 : 0.4 });
   return { scale: win.scale, offX: win.offX + b.x, offY: win.offY + b.y };
 }
 

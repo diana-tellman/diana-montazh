@@ -192,6 +192,15 @@ def cmd_matte(a):
         rgba = np.dstack([rgb, (alpha * 255).astype(np.uint8)])
         n += 1
         Image.fromarray(rgba, "RGBA").save(os.path.join(a.out_dir, f"{n:05d}.webp"), quality=88, method=2)
+        if a.outline > 0:
+            # White ring around the person: dilated silhouette (at half resolution for speed).
+            from PIL import ImageFilter
+            m = Image.fromarray((alpha > 0.5).astype(np.uint8) * 255).resize((W // 2, H // 2), Image.BILINEAR)
+            r = max(1, a.outline // 2)
+            dil = m.filter(ImageFilter.MaxFilter(2 * r + 1)).filter(ImageFilter.GaussianBlur(0.8)).resize((W, H), Image.BILINEAR)
+            ring = np.clip(np.asarray(dil, np.float32) / 255 - alpha, 0, 1)
+            white = np.full((H, W, 3), 255, np.uint8)
+            Image.fromarray(np.dstack([white, (ring * 255).astype(np.uint8)]), "RGBA").save(os.path.join(a.out_dir, f"o{n:05d}.webp"), quality=90, method=2)
     lm.close(); seg.close()
     print(json.dumps({"frames": n, "dir": a.out_dir, "fps": a.fps, "start": a.start}))
 
@@ -308,6 +317,7 @@ def main():
     p = sub.add_parser("matte")
     p.add_argument("video"); p.add_argument("out_dir"); p.add_argument("--start", type=float, required=True)
     p.add_argument("--end", type=float, required=True); p.add_argument("--fps", type=float, default=30)
+    p.add_argument("--outline", type=int, default=0)
     p = sub.add_parser("cover-candidates")
     p.add_argument("video"); p.add_argument("faces"); p.add_argument("out_dir"); p.add_argument("--n", type=int, default=6)
     p = sub.add_parser("grade")

@@ -5,6 +5,7 @@
  *   [--layout auto|full|circle|split] [--no-icons]
  *   [--reference] [--no-reference] [--font modern-sans|neutral-sans|geometric-bold|serif|condensed|rounded|rounded-bold|elegant]
  *   [--size small|medium|large] [--upper|--lower]
+ *   [--beats]  use storyboard/beats.json authored by Claude: {beats, camera, layouts, sfx, voiceSrc, gradeFilter}
  *
  * Builds the edit plan (storyboard.json) from the transcript, face analysis and options.
  * Runs analysis/transcription automatically if they are missing. Any re-plan revokes approval.
@@ -26,6 +27,8 @@ import { validateStoryboard } from "../src/plan/validate";
 import { loadFaces, loadTranscript, revokeApproval, saveStoryboard, sbFile } from "../src/storyboard/store";
 import { FONT_CLASSES } from "../src/design/fontNames";
 import { referenceOptions, SIZE } from "../src/plan/reference";
+import type { Authored } from "../src/plan/planner";
+import { BeatSchema } from "../src/storyboard/schema";
 import { main, out, parseArgs, str } from "./_cli";
 
 const run = promisify(execFile);
@@ -67,6 +70,14 @@ main(async () => {
       ...(str(opt["on-accent"]) ? { onAccent: resolveColor(str(opt["on-accent"])!) } : {}),
     },
   };
+  if (opt.beats) {
+    const bf = join(p.storyboard, "beats.json");
+    if (!existsSync(bf)) throw new Error("Нет storyboard/beats.json");
+    const a = JSON.parse(readFileSync(bf, "utf8")) as Authored & { gradeFilter?: string };
+    o.authored = { beats: (a.beats ?? []).map((b) => BeatSchema.parse(b)), camera: a.camera, layouts: a.layouts, sfx: a.sfx, voiceSrc: a.voiceSrc };
+    if ((a as { styleOverrides?: object }).styleOverrides) o.styleOverrides = { ...(o.styleOverrides ?? {}), ...(a as { styleOverrides?: object }).styleOverrides };
+    if (a.gradeFilter) o.grade = { lut: "", strength: 1, from: "коррекция", filter: a.gradeFilter } as never;
+  } else if (opt["no-beats"]) o.authored = null;
   if (!FORMATS[o.format]) throw new Error(`Неизвестный формат ${o.format}`);
 
   // Blurred fills for videos that will be shown "contain" in this format.
@@ -87,9 +98,11 @@ main(async () => {
     for (const a of project.assets.filter((x) => x.role === "main-video")) {
       const rel = a.prepared.replace(/\.mp4$/, ".graded.mp4");
       const stamp = join(p.root, rel + ".lut");
-      const lutKey = `${o.grade.lut}@${o.grade.strength}`;
+      const g = o.grade as { lut: string; strength: number; filter?: string };
+      const vf = g.filter ?? `lut3d=file=${join(p.root, g.lut)}`;
+      const lutKey = `${vf}@${g.strength}`;
       if (!existsSync(join(p.root, rel)) || !existsSync(stamp) || readFileSync(stamp, "utf8") !== lutKey) {
-        await run("ffmpeg", ["-v", "error", "-y", "-i", join(p.root, a.prepared), "-map", "0:v:0", "-vf", `lut3d=file=${join(p.root, o.grade.lut)}`, "-c:v", "libx264", "-preset", "medium", "-crf", "17", "-pix_fmt", "yuv420p", "-color_primaries", "bt709", "-color_trc", "bt709", "-colorspace", "bt709", "-g", "30", "-movflags", "+faststart", join(p.root, rel)]);
+        await run("ffmpeg", ["-v", "error", "-y", "-i", join(p.root, a.prepared), "-map", "0:v:0", "-vf", vf, "-c:v", "libx264", "-preset", "medium", "-crf", "17", "-pix_fmt", "yuv420p", "-color_primaries", "bt709", "-color_trc", "bt709", "-colorspace", "bt709", "-g", "30", "-movflags", "+faststart", join(p.root, rel)]);
         writeFileSync(stamp, lutKey);
       }
       graded[a.id] = rel;

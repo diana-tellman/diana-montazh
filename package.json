@@ -20,6 +20,7 @@
     "analyze": "tsx scripts/analyze.ts",
     "plan": "tsx scripts/plan.ts",
     "storyboard": "tsx scripts/storyboard.ts",
+    "keyframes": "tsx scripts/keyframes.ts",
     "approve": "tsx scripts/approve.ts",
     "render": "tsx scripts/render.ts",
     "cover": "tsx scripts/cover.ts",
