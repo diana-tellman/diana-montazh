@@ -240,6 +240,66 @@ def cmd_cover(a):
     print(json.dumps(out))
 
 
+# ---------------- colour grade from a reference ----------------
+
+def _srgb_to_lab(rgb):
+    c = np.where(rgb <= 0.04045, rgb / 12.92, ((rgb + 0.055) / 1.055) ** 2.4)
+    M = np.array([[0.4124, 0.3576, 0.1805], [0.2126, 0.7152, 0.0722], [0.0193, 0.1192, 0.9505]])
+    xyz = c @ M.T / np.array([0.95047, 1.0, 1.08883])
+    f = np.where(xyz > 0.008856, np.cbrt(xyz), 7.787 * xyz + 16 / 116)
+    return np.stack([116 * f[..., 1] - 16, 500 * (f[..., 0] - f[..., 1]), 200 * (f[..., 1] - f[..., 2])], -1)
+
+
+def _lab_to_srgb(lab):
+    fy = (lab[..., 0] + 16) / 116
+    fx = fy + lab[..., 1] / 500
+    fz = fy - lab[..., 2] / 200
+    f = np.stack([fx, fy, fz], -1)
+    xyz = np.where(f ** 3 > 0.008856, f ** 3, (f - 16 / 116) / 7.787) * np.array([0.95047, 1.0, 1.08883])
+    Mi = np.array([[3.2406, -1.5372, -0.4986], [-0.9689, 1.8758, 0.0415], [0.0557, -0.2040, 1.0570]])
+    c = np.clip(xyz @ Mi.T, 0, 1)
+    return np.clip(np.where(c <= 0.0031308, 12.92 * c, 1.055 * c ** (1 / 2.4) - 0.055), 0, 1)
+
+
+def _sample_lab(path, n=24):
+    w, h, dur = probe(path)
+    fps = max(0.2, n / max(1.0, dur))
+    px = []
+    for _, rgb in frames(path, fps, 160, int(round(h * 160 / w / 2) * 2)):
+        px.append(rgb.reshape(-1, 3))
+        if len(px) >= n:
+            break
+    allpx = np.concatenate(px).astype(np.float64) / 255
+    return _srgb_to_lab(allpx)
+
+
+def cmd_grade(a):
+    """Reinhard-style statistics transfer in Lab, softened: lightness 0.8, colour 0.5 of the
+    difference (keeps skin natural), scale ratios clamped. Written as a 33³ .cube LUT."""
+    ref = _sample_lab(a.reference)
+    src = _sample_lab(a.source)
+    mr, sr = ref.mean(0), ref.std(0) + 1e-6
+    ms, ss = src.mean(0), src.std(0) + 1e-6
+    ratio = np.clip(sr / ss, 0.7, 1.5)
+    N = 33
+    g = np.linspace(0, 1, N)
+    b, gg, r = np.meshgrid(g, g, g, indexing="ij")  # r varies fastest in .cube order
+    grid = np.stack([r, gg, b], -1).reshape(-1, 3)
+    lab = _srgb_to_lab(grid)
+    target = (lab - ms) * ratio + mr
+    k = np.array([0.95, 0.8, 0.8]) * a.strength
+    out = _lab_to_srgb(lab + (target - lab) * k)
+    with open(a.out, "w") as f:
+        f.write(f"TITLE \"reference grade\"\nLUT_3D_SIZE {N}\n")
+        for row in out:
+            f.write(f"{row[0]:.5f} {row[1]:.5f} {row[2]:.5f}\n")
+    def stats(lab):
+        L, A, B = lab[:, 0], lab[:, 1], lab[:, 2]
+        return {"brightness": round(float(L.mean()), 1), "contrast": round(float(L.std()), 1),
+                "saturation": round(float(np.sqrt(A ** 2 + B ** 2).mean()), 1), "warmth": round(float(B.mean() + 0.3 * A.mean()), 1)}
+    print(json.dumps({"lut": a.out, "reference": stats(ref), "source": stats(src), "strength": a.strength}))
+
+
 def main():
     ap = argparse.ArgumentParser()
     sub = ap.add_subparsers(dest="cmd", required=True)
@@ -250,8 +310,17 @@ def main():
     p.add_argument("--end", type=float, required=True); p.add_argument("--fps", type=float, default=30)
     p = sub.add_parser("cover-candidates")
     p.add_argument("video"); p.add_argument("faces"); p.add_argument("out_dir"); p.add_argument("--n", type=int, default=6)
+    p = sub.add_parser("grade")
+    p.add_argument("reference"); p.add_argument("source"); p.add_argument("out"); p.add_argument("--strength", type=float, default=0.85)
+    p = sub.add_parser("cuts")
+    p.add_argument("video")
     a = ap.parse_args()
-    {"analyze": cmd_analyze, "matte": cmd_matte, "cover-candidates": cmd_cover}[a.cmd](a)
+    if a.cmd == "cuts":
+        _, _, dur = probe(a.video)
+        c = scene_cuts(a.video)
+        print(json.dumps({"cuts": c, "durationSec": dur, "cutsPerSec": round(len(c) / max(1.0, dur), 3)}))
+        return
+    {"analyze": cmd_analyze, "matte": cmd_matte, "cover-candidates": cmd_cover, "grade": cmd_grade}[a.cmd](a)
 
 
 if __name__ == "__main__":

@@ -41,6 +41,7 @@ ANALYSIS → STORYBOARD → APPROVAL → RENDER → COVER → QUALITY CONTROL �
 | файл по ссылке | `npm run fetch -- <url>` |
 | проект | `npm run new -- --name <имя> --lang kk|ru|en [--script <txt>] [--voice <файл>] <файлы…>` (код 3 = задать вопрос) |
 | план | `npm run plan -- <id> [--style …] [--text …] [--accent …] [--format …] [--platform …] [--position …] [--no-behind] [--no-sfx] [--no-progress] [--energy 0-2] [--layout auto|full|circle|split] [--no-icons]` (сам вызовет transcribe и analyze) |
+| референс | `npm run reference -- <id> <образец.mp4>` → посмотреть `work/reference/frames.jpg`, заполнить `storyboard/reference-style.json` → `npm run plan -- <id> --reference [--font …] [--size …] [--upper|--lower]` (skill reference-match; слова пользователя важнее референса) |
 | сториборд | `npm run storyboard -- <id>` → отправить `contact-sheet.jpg` и `storyboard.html` |
 | одобрение | `npm run approve -- <id>` (только после слов пользователя) |
 | рендер | `npm run render -- <id> [--max-mb 90]` |

@@ -21,6 +21,8 @@ description: Главный режиссёр монтажа. Используй,
 - Голос — **только** собственный голос пользователя. Никакого TTS. Нет голоса → попроси запись MP3/M4A/WAV.
 - Если пользователь даёт текст сценария: сохрани его в файл; слова-акценты отметь `*так*`.
 
+**2б. Референс.** Если пользователь прислал образец («осындай болсын», «как в этом ролике») — skill `reference-match` (стиль, цвет, темп как в референсе; его явные пожелания важнее).
+
 **3. План.** `npm run plan -- <id> [опции]` — сам запустит распознавание речи и анализ лица.
 Опции из пожеланий/вкусов: `--style brand|minimal|kinetic|glass|lime`, `--text <цвет>`, `--accent <цвет>`, `--format 9:16|4:5|1:1|16:9`, `--platform reels|stories|shorts|tiktok|feed|youtube`, `--position auto|top|middle|bottom`, `--no-behind`, `--no-sfx`, `--no-progress`, `--energy 0|1|2`, `--layout auto|full|circle|split`, `--no-icons`. Доп. фото/клипы к своему видео → автоматически split-screen моменты. Подробнее — skills `smart-layout`, `kinetic-typography`, `smart-captions`.
 

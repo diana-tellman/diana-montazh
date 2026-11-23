@@ -3,7 +3,7 @@ import { useLayoutEffect, useRef, useState } from "react";
 import { AbsoluteFill, Img, Sequence, interpolate, spring, staticFile, useCurrentFrame, useVideoConfig, type CalculateMetadataFunction } from "remotion";
 import { z } from "zod";
 import { ensureFontsLoaded, FONT_FAMILIES } from "../design/fonts";
-import { contrastRatio, STYLES, type StyleDef } from "../design/styles";
+import { contrastRatio, resolveStyle, type StyleDef } from "../design/styles";
 import { easeInOut } from "../layout/frame";
 import { personBox, personWindow, secondaryBox } from "../layout/person";
 import { ICONS } from "../design/icons";
@@ -322,7 +322,7 @@ const Guides: React.FC<{ sb: Storyboard; g: NonNullable<EditProps["guides"]> }> 
 // ---------------- composition ----------------
 
 export const Edit: React.FC<EditProps> = ({ storyboard: sb, guides, useMattes }) => {
-  const st = STYLES[sb.style.preset];
+  const st = resolveStyle(sb.style.preset, sb.style.overrides);
   const f = (s: number) => Math.round(s * sb.fps);
   return (
     <AbsoluteFill style={{ backgroundColor: "#141414" }}>

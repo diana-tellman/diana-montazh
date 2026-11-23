@@ -1,7 +1,7 @@
 import type { Faces } from "../analysis/faces";
 import { easeInOut, mapRect } from "../layout/frame";
 import { captionBand, overlaps, safeZone, type Rect } from "../layout/safeZones";
-import { STYLES } from "../design/styles";
+import { resolveStyle } from "../design/styles";
 import { cameraAt, layoutAt, type Check, type Storyboard } from "../storyboard/schema";
 import { clipToPerson, personWindow } from "../layout/person";
 import { estTextWidth } from "./planner";
@@ -27,7 +27,7 @@ export function faceBoxesAt(sb: Storyboard, faces: Faces | null, t: number, pad 
  * never over the face at any sampled moment, readable size, timing inside the video.
  */
 export function validateStoryboard(sb: Storyboard, faces: Faces | null, baseChecks: Check[] = []): Check[] {
-  const st = STYLES[sb.style.preset];
+  const st = resolveStyle(sb.style.preset, sb.style.overrides);
   const safe = safeZone(sb.platform);
   const checks: Check[] = baseChecks.filter((c) => !["caption_face", "caption_safe", "caption_small", "timing", "behind_safe"].includes(c.code));
   const px0 = st.size * Math.min(sb.width, sb.height);

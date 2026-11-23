@@ -1,7 +1,7 @@
 import type { Faces } from "../analysis/faces";
 import { faceAnchor } from "../analysis/faces";
 import type { Project } from "../core/project";
-import { STYLES, contrastRatio, type Colors, type StyleDef, type StylePreset } from "../design/styles";
+import { contrastRatio, resolveStyle, type Colors, type StyleDef, type StyleOverrides, type StylePreset } from "../design/styles";
 import { FORMATS, type FormatId } from "../formats";
 import { chooseFraming, computeWindow, easeInOut, mapRect, type Framing } from "../layout/frame";
 import { captionBand, inside, overlaps, safeZone, type Platform, type Rect } from "../layout/safeZones";
@@ -22,6 +22,12 @@ export type PlanOptions = {
   behindText: boolean;
   sfx: boolean;
   progressBar: boolean;
+  /** Preset field overrides (reference video / explicit wishes). */
+  styleOverrides?: StyleOverrides;
+  /** Where the style comes from, e.g. "референс: ref.mp4". */
+  styleSource?: string;
+  /** 3D LUT colour grade (project-relative .cube) + strength, from a reference. */
+  grade?: { lut: string; strength: number; from: string } | null;
   /** 0 = static camera, 1 = normal, 2 = energetic. */
   cameraEnergy: 0 | 1 | 2;
   /** auto = split-screen moments when extra photos/clips exist; or force one layout for the whole video. */
@@ -40,6 +46,8 @@ export type PlanInput = {
   faces: Faces | null;
   /** Project-relative blurred fill per video asset (contain framing). */
   fills: Record<string, string>;
+  /** Project-relative colour-graded proxy per video asset (reference look). */
+  graded?: Record<string, string>;
   options: PlanOptions;
 };
 
@@ -49,7 +57,8 @@ const r3 = (n: number) => Math.round(n * 1000) / 1000;
 
 /** Approximate rendered text width in px (the composition also fits text in the browser). */
 export function estTextWidth(text: string, fontPx: number, st: StyleDef): number {
-  const f = st.font === "montserrat" ? 0.64 : st.font === "inter" ? 0.56 : 0.57;
+  const factors: Record<string, number> = { montserrat: 0.64, inter: 0.56, onest: 0.57, ptserif: 0.55, oswald: 0.45, rubik: 0.59, raleway: 0.58, nunito: 0.57 };
+  const f = factors[st.font] ?? 0.6;
   return text.length * fontPx * f * (st.uppercase ? 1.12 : 1) + text.length * st.letterSpacing * fontPx;
 }
 
@@ -60,7 +69,7 @@ export function buildStoryboard(inp: PlanInput, version = 1): Storyboard {
   const H = fmt.height;
   const short = Math.min(W, H);
   const safe = safeZone(o.platform);
-  const st = STYLES[o.style];
+  const st = resolveStyle(o.style, o.styleOverrides);
   const colors: Colors = { ...st.colors, ...(o.colors ?? {}) };
   const fps = 30;
   const voice = project.assets.find((a) => a.id === project.voiceAssetId);
@@ -92,7 +101,7 @@ export function buildStoryboard(inp: PlanInput, version = 1): Storyboard {
     const v = mainVideo.info.video;
     const framing: Framing = chooseFraming(v.width, v.height, W, H);
     visuals.push({
-      id: "v1", start: 0, end: duration, kind: "video", src: mainVideo.prepared, srcStart: 0, srcW: v.width, srcH: v.height, framing,
+      id: "v1", start: 0, end: duration, kind: "video", src: inp.graded?.[mainVideo.id] ?? mainVideo.prepared, srcStart: 0, srcW: v.width, srcH: v.height, framing,
       fill: framing === "contain" ? inp.fills[mainVideo.id] ?? null : null,
     });
   } else {
@@ -432,7 +441,8 @@ export function buildStoryboard(inp: PlanInput, version = 1): Storyboard {
   return {
     schema: 1, projectId: project.id, version, updatedAt: new Date().toISOString(), mode: project.mode,
     format: o.format, platform: o.platform, width: W, height: H, fps, durationSec: r3(duration),
-    style: { preset: o.style, colors, captionPosition: o.captionPosition },
+    style: { preset: o.style, colors, captionPosition: o.captionPosition, overrides: o.styleOverrides ?? {}, source: o.styleSource ?? o.style },
+    grade: o.grade ?? null,
     voice: { src: voice.prepared, gain: 1 },
     visuals, camera, captions, behindText, callouts: [], layouts, icons, sfx, progressBar: o.progressBar, scenes, checks,
     transcriptNote: transcript.notes.join(" "),

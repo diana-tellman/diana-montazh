@@ -3,6 +3,8 @@
  *   [--platform reels|stories|shorts|tiktok|feed|square|youtube] [--text <color>] [--accent <color>]
  *   [--position auto|top|middle|bottom] [--no-behind] [--no-sfx] [--no-progress] [--energy 0|1|2]
  *   [--layout auto|full|circle|split] [--no-icons]
+ *   [--reference] [--no-reference] [--font modern-sans|neutral-sans|geometric-bold|serif|condensed|rounded|rounded-bold|elegant]
+ *   [--size small|medium|large] [--upper|--lower]
  *
  * Builds the edit plan (storyboard.json) from the transcript, face analysis and options.
  * Runs analysis/transcription automatically if they are missing. Any re-plan revokes approval.
@@ -22,7 +24,8 @@ import { resolveColor, StylePresetSchema } from "../src/design/styles";
 import { buildStoryboard, DEFAULT_OPTIONS, type PlanOptions } from "../src/plan/planner";
 import { validateStoryboard } from "../src/plan/validate";
 import { loadFaces, loadTranscript, revokeApproval, saveStoryboard, sbFile } from "../src/storyboard/store";
-import { StoryboardSchema } from "../src/storyboard/schema";
+import { FONT_CLASSES } from "../src/design/fontNames";
+import { referenceOptions, SIZE } from "../src/plan/reference";
 import { main, out, parseArgs, str } from "./_cli";
 
 const run = promisify(execFile);
@@ -39,7 +42,10 @@ main(async () => {
   if (project.mode === "expert-video" && !existsSync(join(p.work, "faces.json"))) await sh("scripts/analyze.ts", [id]);
 
   const optFile = join(p.storyboard, "options.json");
-  const prev: PlanOptions = existsSync(optFile) ? { ...DEFAULT_OPTIONS, ...JSON.parse(readFileSync(optFile, "utf8")) } : { ...DEFAULT_OPTIONS };
+  let prev: PlanOptions = existsSync(optFile) ? { ...DEFAULT_OPTIONS, ...JSON.parse(readFileSync(optFile, "utf8")) } : { ...DEFAULT_OPTIONS };
+  // Reference video scheme (filled by Claude from work/reference/frames.jpg). Explicit flags below still win.
+  if (opt.reference) prev = { ...prev, ...referenceOptions(p.root, p.storyboard, p.work) };
+  if (opt["no-reference"]) prev = { ...prev, styleOverrides: {}, styleSource: undefined, grade: null };
   const format = (str(opt.format) ?? prev.format) as FormatId;
   const o: PlanOptions = {
     ...prev,
@@ -53,6 +59,7 @@ main(async () => {
     cameraEnergy: str(opt.energy) ? (Number(opt.energy) as 0 | 1 | 2) : prev.cameraEnergy,
     layout: (str(opt.layout) as PlanOptions["layout"]) ?? prev.layout ?? "auto",
     icons: opt["no-icons"] ? false : opt.icons ? true : prev.icons ?? true,
+    styleOverrides: { ...(prev.styleOverrides ?? {}), ...(str(opt.font) ? { font: FONT_CLASSES[str(opt.font)!] ?? (str(opt.font) as never) } : {}), ...(opt.upper ? { uppercase: true } : {}), ...(opt.lower ? { uppercase: false } : {}), ...(str(opt.size) ? { size: SIZE[str(opt.size)!] ?? Number(opt.size) } : {}) },
     colors: {
       ...(str(opt.style) ? {} : prev.colors),
       ...(str(opt.text) ? { text: resolveColor(str(opt.text)!) } : {}),
@@ -74,9 +81,24 @@ main(async () => {
   }
   await ensureSfx(p.root);
 
+  // Colour grade from the reference, baked into a graded proxy by ffmpeg.
+  const graded: Record<string, string> = {};
+  if (o.grade) {
+    for (const a of project.assets.filter((x) => x.role === "main-video")) {
+      const rel = a.prepared.replace(/\.mp4$/, ".graded.mp4");
+      const stamp = join(p.root, rel + ".lut");
+      const lutKey = `${o.grade.lut}@${o.grade.strength}`;
+      if (!existsSync(join(p.root, rel)) || !existsSync(stamp) || readFileSync(stamp, "utf8") !== lutKey) {
+        await run("ffmpeg", ["-v", "error", "-y", "-i", join(p.root, a.prepared), "-map", "0:v:0", "-vf", `lut3d=file=${join(p.root, o.grade.lut)}`, "-c:v", "libx264", "-preset", "medium", "-crf", "17", "-pix_fmt", "yuv420p", "-color_primaries", "bt709", "-color_trc", "bt709", "-colorspace", "bt709", "-g", "30", "-movflags", "+faststart", join(p.root, rel)]);
+        writeFileSync(stamp, lutKey);
+      }
+      graded[a.id] = rel;
+    }
+  }
+
   const faces = loadFaces(id);
-  const prevVersion = existsSync(sbFile(id)) ? StoryboardSchema.parse(JSON.parse(readFileSync(sbFile(id), "utf8"))).version : 0;
-  const sb = buildStoryboard({ project, transcript: loadTranscript(id), faces, fills, options: o }, prevVersion + 1);
+  const prevVersion = existsSync(sbFile(id)) ? Number((JSON.parse(readFileSync(sbFile(id), "utf8")) as { version?: number }).version ?? 0) : 0;
+  const sb = buildStoryboard({ project, transcript: loadTranscript(id), faces, fills, graded, options: o }, prevVersion + 1);
   sb.checks = validateStoryboard(sb, faces, sb.checks);
   saveStoryboard(sb);
   writeFileSync(optFile, JSON.stringify(o, null, 2));
@@ -88,7 +110,7 @@ main(async () => {
 
   const errors = sb.checks.filter((c) => c.level === "error");
   out({
-    id, version: sb.version, format: sb.format, platform: sb.platform, style: sb.style.preset, durationSec: sb.durationSec,
+    id, version: sb.version, format: sb.format, platform: sb.platform, style: sb.style.preset, styleSource: sb.style.source, overrides: sb.style.overrides, grade: sb.grade, durationSec: sb.durationSec,
     scenes: sb.scenes.length, captions: sb.captions.length, behindText: sb.behindText.map((b) => b.text), sfx: sb.sfx.length,
     layouts: sb.layouts.map((l) => `${l.kind} ${l.start}-${l.end}`), icons: sb.icons.map((i) => `${i.name}:${i.word}`),
     approvalRevoked: revoked, errors: errors.length, warnings: sb.checks.length - errors.length,

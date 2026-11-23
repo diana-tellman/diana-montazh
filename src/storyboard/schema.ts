@@ -1,5 +1,5 @@
 import { z } from "zod";
-import { ColorsSchema, StylePresetSchema } from "../design/styles";
+import { ColorsSchema, StyleOverridesSchema, StylePresetSchema } from "../design/styles";
 
 const Sec = z.number().nonnegative();
 
@@ -135,7 +135,17 @@ export const StoryboardSchema = z.object({
   height: z.number().int(),
   fps: z.number(),
   durationSec: z.number().positive(),
-  style: z.object({ preset: StylePresetSchema, colors: ColorsSchema, captionPosition: z.enum(["auto", "top", "middle", "bottom"]) }),
+  style: z.object({
+    preset: StylePresetSchema,
+    colors: ColorsSchema,
+    captionPosition: z.enum(["auto", "top", "middle", "bottom"]),
+    /** Overrides of the preset (reference video / explicit wishes). */
+    overrides: StyleOverridesSchema,
+    /** Short human description of where the style comes from (shown in the storyboard). */
+    source: z.string(),
+  }),
+  /** Colour grade applied to the person's video (baked by ffmpeg), or null. */
+  grade: z.object({ lut: z.string(), strength: z.number(), from: z.string() }).nullable(),
   voice: z.object({ src: z.string(), gain: z.number() }),
   visuals: z.array(VisualSchema),
   camera: z.array(CameraKeySchema),

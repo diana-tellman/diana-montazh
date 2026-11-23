@@ -1,5 +1,5 @@
 import { z } from "zod";
-import type { FontId } from "./fonts";
+import { FONT_FAMILIES, type FontId } from "./fontNames";
 
 /** Brand palette (default). User colours override it via the storyboard `style.colors`. */
 export const BRAND = { graphite: "#141414", burgundy: "#6B1732", softWhite: "#F7F5F2", white: "#FFFFFF" } as const;
@@ -112,4 +112,31 @@ export function resolveColor(c: string): string {
   const v = NAMED_COLORS[k];
   if (!v) throw new Error(`Неизвестный цвет: ${c}. Используйте HEX (#RRGGBB) или название.`);
   return v;
+}
+
+/**
+ * Per-project style overrides (from a reference video or explicit wishes). Any field may be set;
+ * the rest comes from the preset. Priority: explicit user wish > reference > taste memory > preset.
+ */
+export const StyleOverridesSchema = z
+  .object({
+    font: z.enum(Object.keys(FONT_FAMILIES) as [FontId, ...FontId[]]),
+    weight: z.number().int().min(300).max(900),
+    uppercase: z.boolean(),
+    size: z.number().min(0.03).max(0.08),
+    lineHeight: z.number().min(0.9).max(1.4),
+    letterSpacing: z.number().min(-0.05).max(0.15),
+    active: z.enum(["pill", "color", "scale", "underline"]),
+    upcoming: z.enum(["dim", "hidden", "visible"]),
+    backdrop: z.enum(["shadow", "glass", "none"]),
+    enter: z.enum(["pop", "rise", "fade", "slide"]),
+    maxWordsPerPhrase: z.number().int().min(1).max(8),
+    maxCharsPerLine: z.number().int().min(8).max(32),
+    emphasisScale: z.number().min(1).max(1.3),
+  })
+  .partial();
+export type StyleOverrides = z.infer<typeof StyleOverridesSchema>;
+
+export function resolveStyle(preset: StylePreset, overrides: StyleOverrides | undefined): StyleDef {
+  return { ...STYLES[preset], ...(overrides ?? {}) };
 }

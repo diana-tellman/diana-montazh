@@ -78,8 +78,9 @@ main(async () => {
   const rows = Math.ceil(jobs.length / cols);
   const W = cols * tw + (cols + 1) * gap;
   const H = 190 + rows * (th + labelH + gap) + gap;
+  const styleLabel = sb.style.source.startsWith("референс") ? sb.style.source : STYLES[sb.style.preset].label;
   const header = `<svg width="${W}" height="190" xmlns="http://www.w3.org/2000/svg"><style>.t{font-family:Inter,sans-serif;fill:#F7F5F2}</style>
-    <text x="${gap}" y="70" class="t" font-size="54" font-weight="800">Сториборд v${sb.version} · ${sb.format} · ${STYLES[sb.style.preset].label}</text>
+    <text x="${gap}" y="70" class="t" font-size="54" font-weight="800">Сториборд v${sb.version} · ${sb.format} · ${esc(styleLabel)}</text>
     <text x="${gap}" y="122" class="t" font-size="30" fill-opacity="0.75">${esc(`${sb.durationSec.toFixed(1)} с · ${sb.scenes.length} сцен · ${sb.captions.length} субтитров`)}</text>
     <text x="${gap}" y="160" class="t" font-size="26" fill-opacity="0.6">${esc("жёлтая рамка — безопасная зона · зелёная — лицо · красное — интерфейс соцсети")}</text></svg>`;
   const comps: OverlayOptions[] = [{ input: Buffer.from(header), top: 0, left: 0 }];
@@ -113,7 +114,7 @@ h1{font-size:22px;margin:0 0 4px}.meta{color:var(--mut);font-size:14px;margin-bo
 .ask{border:1px solid var(--acc);border-radius:16px;padding:12px}code{background:#2a2a2a;padding:1px 6px;border-radius:6px}
 </style></head><body>
 <h1>Сториборд v${sb.version}</h1>
-<div class="meta">${sb.format} · ${sb.width}×${sb.height} · ${sb.durationSec.toFixed(1)} с · стиль ${esc(st.label)} · цвета: текст ${sb.style.colors.text}, акцент ${sb.style.colors.accent} · зона: ${esc(sz.label)}</div>
+<div class="meta">${sb.format} · ${sb.width}×${sb.height} · ${sb.durationSec.toFixed(1)} с · стиль ${esc(sb.style.source.startsWith("референс") ? sb.style.source : st.label)}${sb.grade ? " · цвет как в референсе" : ""} · цвета: текст ${sb.style.colors.text}, акцент ${sb.style.colors.accent} · зона: ${esc(sz.label)}</div>
 <div class="card"><b>Проверки</b><ul>${sb.checks.length ? sb.checks.map(checkLi).join("") : "<li>✅ Всё в порядке: текст в безопасной зоне и не закрывает лицо.</li>"}</ul>
 <div class="k">${esc(sb.transcriptNote)}</div></div>
 ${sb.scenes.map((s, i) => `<div class="card"><img src="${img(jobs[i]!.output)}" alt="Сцена ${s.index}">

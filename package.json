@@ -24,6 +24,7 @@
     "cover": "tsx scripts/cover.ts",
     "qc": "tsx scripts/qc.ts",
     "fetch": "tsx scripts/fetch.ts",
+    "reference": "tsx scripts/reference.ts",
     "status": "tsx scripts/status.ts",
     "smoke": "tsx scripts/smoke.ts",
     "bench": "tsx scripts/bench.ts"
@@ -31,7 +32,12 @@
   "dependencies": {
     "@fontsource/inter": "5.3.0",
     "@fontsource/montserrat": "5.3.0",
+    "@fontsource/nunito": "5.3.0",
     "@fontsource/onest": "5.3.1",
+    "@fontsource/oswald": "5.3.0",
+    "@fontsource/pt-serif": "5.3.0",
+    "@fontsource/raleway": "5.3.0",
+    "@fontsource/rubik": "5.3.0",
     "@remotion/bundler": "4.0.545",
     "@remotion/captions": "4.0.545",
     "@remotion/cli": "4.0.545",
