@@ -16,11 +16,13 @@ export type RenderJob = {
   /** Parallel browser tabs. null = Remotion default. */
   concurrency?: number | null;
   onProgress?: (p: number) => void;
+  /** Reuse an existing bundle (serve URL). */
+  serveUrl?: string;
 };
 
 /** Low-level Remotion render to H.264/AAC MP4. The approval gate is enforced one level up (Phase 7–8). */
 export async function renderMp4(job: RenderJob): Promise<string> {
-  const serveUrl = await bundle({ entryPoint: join(ROOT, "src/index.ts"), publicDir: job.publicDir });
+  const serveUrl = job.serveUrl ?? (await bundle({ entryPoint: join(ROOT, "src/index.ts"), publicDir: job.publicDir }));
   const browserExecutable = findBrowserExecutable();
   const composition = await selectComposition({ serveUrl, id: job.compositionId, inputProps: job.inputProps, browserExecutable });
   await renderMedia({

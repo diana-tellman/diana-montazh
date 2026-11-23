@@ -17,7 +17,7 @@ const run = promisify(execFile);
  */
 const RELEASE = "https://github.com/k2-fsa/sherpa-onnx/releases/download/asr-models/";
 
-export type ModelId = "whisper-turbo" | "whisper-tiny" | "silero-vad";
+export type ModelId = "whisper-turbo" | "whisper-tiny" | "silero-vad" | "mp-face-landmarker" | "mp-selfie-multiclass";
 
 type ModelSpec = {
   id: ModelId;
@@ -26,6 +26,8 @@ type ModelSpec = {
   archive: "tar.bz2" | "file";
   /** Approximate download size, MB (shown to the user). */
   downloadMb: number;
+  /** Folder under models/ (default: speech/<id>). */
+  folder?: string;
   /** File → expected sha256, relative to the model folder. */
   files: Record<string, string>;
 };
@@ -63,10 +65,30 @@ export const MODELS: Record<ModelId, ModelSpec> = {
     downloadMb: 1,
     files: { "silero_vad.onnx": "9e2449e1087496d8d4caba907f23e0bd3f78d91fa552479bb9c23ac09cbb1fd6" },
   },
+  // MediaPipe (Apache-2.0), versioned URLs on Google storage (default allow-list of Claude Code cloud).
+  "mp-face-landmarker": {
+    id: "mp-face-landmarker",
+    label: "MediaPipe Face Landmarker — лицо, глаза, рот, подбородок",
+    url: "https://storage.googleapis.com/mediapipe-models/face_landmarker/face_landmarker/float16/1/face_landmarker.task",
+    archive: "file",
+    downloadMb: 4,
+    folder: "mediapipe",
+    files: { "face_landmarker.task": "64184e229b263107bc2b804c6625db1341ff2bb731874b0bcc2fe6544e0bc9ff" },
+  },
+  "mp-selfie-multiclass": {
+    id: "mp-selfie-multiclass",
+    label: "MediaPipe Selfie Multiclass — силуэт, волосы, лицо",
+    url: "https://storage.googleapis.com/mediapipe-models/image_segmenter/selfie_multiclass_256x256/float32/1/selfie_multiclass_256x256.tflite",
+    archive: "file",
+    downloadMb: 16,
+    folder: "mediapipe",
+    files: { "selfie_multiclass.tflite": "c6748b1253a99067ef71f7e26ca71096cd449baefa8f101900ea23016507e0e0" },
+  },
 };
 
 export function modelDir(modelsRoot: string, id: ModelId): string {
-  return join(modelsRoot, "speech", id);
+  const f = MODELS[id].folder;
+  return f ? join(modelsRoot, f) : join(modelsRoot, "speech", id);
 }
 
 async function sha256(file: string): Promise<string> {
@@ -77,7 +99,7 @@ async function sha256(file: string): Promise<string> {
 
 export async function verifyModel(modelsRoot: string, id: ModelId): Promise<boolean> {
   const dir = modelDir(modelsRoot, id);
-  const marker = join(dir, ".verified");
+  const marker = join(dir, `.verified-${id}`);
   if (existsSync(marker)) return true;
   for (const [f, hash] of Object.entries(MODELS[id].files)) {
     const p = join(dir, f);
@@ -94,9 +116,9 @@ export async function ensureModel(modelsRoot: string, id: ModelId, log: (s: stri
   if (await verifyModel(modelsRoot, id)) return dir;
 
   log(`Загрузка модели: ${spec.label} (~${spec.downloadMb} МБ, один раз на сессию)…`);
-  rmSync(dir, { recursive: true, force: true });
+  if (!MODELS[id].folder) rmSync(dir, { recursive: true, force: true });
   mkdirSync(dir, { recursive: true });
-  const tmp = join(dir, "download.part");
+  const tmp = join(dir, `${id}.part`);
   const res = await fetch(spec.url, { redirect: "follow" });
   if (!res.ok || !res.body) {
     throw new Error(
@@ -115,7 +137,7 @@ export async function ensureModel(modelsRoot: string, id: ModelId, log: (s: stri
     renameSync(tmp, join(dir, Object.keys(spec.files)[0]!));
   }
   if (!(await verifyModel(modelsRoot, id))) {
-    rmSync(dir, { recursive: true, force: true });
+    for (const f of Object.keys(spec.files)) rmSync(join(dir, f), { force: true });
     throw new Error(`Контрольная сумма модели ${id} не совпала — файл повреждён или подменён. Загрузка отменена.`);
   }
   log(`Модель ${id} готова и проверена (SHA-256).`);

@@ -10,3 +10,7 @@ projects/*
 models/
 .env
 .env.*
+
+# Files downloaded from links (user media)
+incoming/
+out/

@@ -71,9 +71,9 @@ describe("script alignment", () => {
 });
 
 describe("model registry", () => {
-  it("every model is pinned by sha256 and comes from official sherpa-onnx releases", () => {
+  it("every model is pinned by sha256 and comes from official sherpa-onnx / MediaPipe sources", () => {
     for (const m of Object.values(MODELS)) {
-      expect(m.url.startsWith("https://github.com/k2-fsa/sherpa-onnx/releases/download/")).toBe(true);
+      expect(m.url.startsWith("https://github.com/k2-fsa/sherpa-onnx/releases/download/") || m.url.startsWith("https://storage.googleapis.com/mediapipe-models/")).toBe(true);
       for (const h of Object.values(m.files)) expect(h).toMatch(/^[0-9a-f]{64}$/);
     }
   });

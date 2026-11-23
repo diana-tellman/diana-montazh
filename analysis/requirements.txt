@@ -1,0 +1,4 @@
+# Pinned: analysis runs in an isolated venv created automatically (models/.venv).
+mediapipe==1.2.3
+numpy==2.5.5
+pillow==13.0.0
