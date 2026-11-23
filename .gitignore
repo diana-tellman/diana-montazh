@@ -1,0 +1,16 @@
+node_modules/
+out/
+.cache/
+*.log
+# User media and per-project work never go into git (privacy + repo size).
+projects/*
+!projects/.gitkeep
+!projects/README.md
+# Downloaded models
+models/
+.env
+.env.*
+
+# Files downloaded from links (user media)
+incoming/
+out/
