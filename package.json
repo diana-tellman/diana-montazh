@@ -13,6 +13,7 @@
     "typecheck": "tsc --noEmit",
     "test": "vitest run",
     "doctor": "tsx scripts/doctor.ts",
+    "setup": "tsx scripts/setup.ts",
     "new": "tsx scripts/new-project.ts",
     "ingest": "tsx scripts/ingest.ts",
     "transcribe": "tsx scripts/transcribe.ts",

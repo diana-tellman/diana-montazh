@@ -42,7 +42,7 @@ ANALYSIS → STORYBOARD → APPROVAL → RENDER → COVER → QUALITY CONTROL �
 ## Команды (выполняет Claude)
 | Шаг | Команда |
 |---|---|
-| зависимости | SessionStart-хук ставит сам; иначе `npm ci` |
+| зависимости | SessionStart-хук ставит сам; иначе `npm ci`. Всё заранее (Python-среда, модели): `npm run setup` (его вызывает скрипт облачной среды `setup/cloud-environment.sh`) |
 | файл по ссылке | `npm run fetch -- <url>` |
 | проект | `npm run new -- --name <имя> --lang kk|ru|en [--script <txt>] [--voice <файл>] <файлы…>` (код 3 = задать вопрос) |
 | план | `npm run plan -- <id> [--style …] [--text …] [--accent …] [--format …] [--platform …] [--position …] [--no-behind] [--no-sfx] [--no-progress] [--energy 0-2] [--layout auto|full|circle|split] [--no-icons]` (сам вызовет transcribe и analyze) |
