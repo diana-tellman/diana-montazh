@@ -80,7 +80,7 @@ main(async () => {
     const h34 = Math.round((sb.width * 4) / 3);
     await sharp(cover).extract({ left: 0, top: Math.round((sb.height - h34) / 2), width: sb.width, height: h34 }).jpeg({ quality: 88 }).toFile(grid);
   } else copyFileSync(cover, grid);
-  project = transition(project, "cover_done", `Обложка: «${title}»`);
+  if (project.status === "rendered") project = transition(project, "cover_done", `Обложка: «${title}»`);
   saveProject(project);
   out({ id, cover, gridPreview: grid, t, title, word: props.cutout ? word : null });
 });

@@ -48,7 +48,7 @@ export const Cover: React.FC<CoverProps> = (p) => {
       {p.frame ? layer(p.frame) : <AbsoluteFill style={{ background: `radial-gradient(120% 80% at 50% 30%, ${p.colors.accent}, #141414 65%)` }} />}
       <AbsoluteFill style={{ background: "linear-gradient(180deg, rgba(0,0,0,0.25) 0%, rgba(0,0,0,0) 30%, rgba(0,0,0,0) 48%, rgba(0,0,0,0.78) 78%, rgba(0,0,0,0.9) 100%)" }} />
       {word && p.cutout ? (
-        <div style={{ position: "absolute", top: wordTop, width: "100%", textAlign: "center", fontFamily: FONT_FAMILIES.montserrat, fontWeight: 900, fontSize: wordPx, lineHeight: 1, letterSpacing: "-0.02em", color: p.colors.text === "#141414" ? p.colors.accent : "#FFFFFF", textShadow: "0 12px 50px rgba(0,0,0,0.35)" }}>
+        <div style={{ position: "absolute", top: wordTop, width: "100%", textAlign: "center", fontFamily: FONT_FAMILIES.intertight, fontWeight: 900, fontSize: wordPx, lineHeight: 1, letterSpacing: "-0.045em", color: p.colors.text === "#141414" ? "#FFFFFF" : p.colors.accent, textShadow: "0 12px 50px rgba(0,0,0,0.35)" }}>
           {word}
         </div>
       ) : null}
@@ -56,13 +56,13 @@ export const Cover: React.FC<CoverProps> = (p) => {
       {p.tag ? (
         // Above the head when there is room; otherwise just above the title (never on the face).
         <div style={{ position: "absolute", ...(headTopY > 0.24 ? { top: 0.14 * H } : { bottom: 0.15 * H + titlePx * 2.5 }), left: headTopY > 0.24 ? 0 : 0.07 * W, width: headTopY > 0.24 ? "100%" : "auto", display: "flex", justifyContent: headTopY > 0.24 ? "center" : "flex-start" }}>
-          <div style={{ fontFamily: FONT_FAMILIES.onest, fontWeight: 800, fontSize: 0.038 * W, color: "#fff", padding: `${0.014 * W}px ${0.04 * W}px`, borderRadius: 999, background: "rgba(16,18,24,0.5)", border: "2px solid rgba(255,255,255,0.35)" }}>{p.tag}</div>
+          <div style={{ fontFamily: FONT_FAMILIES.intertight, fontWeight: 800, fontSize: 0.038 * W, color: "#fff", padding: `${0.014 * W}px ${0.04 * W}px`, borderRadius: 999, background: "rgba(16,18,24,0.5)", border: "2px solid rgba(255,255,255,0.35)" }}>{p.tag}</div>
         </div>
       ) : null}
-      <div style={{ position: "absolute", left: 0.07 * W, right: 0.07 * W, bottom: 0.15 * H, fontFamily: FONT_FAMILIES.onest, fontWeight: 900, fontSize: titlePx, lineHeight: 1.02, letterSpacing: "-0.02em", color: "#FFFFFF", textShadow: "0 4px 24px rgba(0,0,0,0.5)" }}>
+      <div style={{ position: "absolute", left: 0.07 * W, right: 0.07 * W, bottom: 0.15 * H, fontFamily: FONT_FAMILIES.intertight, fontWeight: 900, fontSize: titlePx, lineHeight: 1.0, letterSpacing: "-0.04em", color: p.colors.text, textShadow: "0 4px 24px rgba(0,0,0,0.5)" }}>
         {parts.map((s, i) =>
           s.startsWith("*") ? (
-            <span key={i} style={{ background: p.colors.accent, color: p.colors.onAccent, padding: `0 ${titlePx * 0.15}px`, borderRadius: titlePx * 0.15, boxDecorationBreak: "clone", WebkitBoxDecorationBreak: "clone" }}>{s.slice(1, -1)}</span>
+            <span key={i} style={{ fontFamily: FONT_FAMILIES.cormorant, fontStyle: "italic", fontWeight: 700, fontSize: titlePx * 1.18, letterSpacing: "-0.01em", color: p.colors.accent, padding: `0 ${titlePx * 0.08}px` }}>{s.slice(1, -1)}</span>
           ) : (
             <span key={i}>{s}</span>
           ),
