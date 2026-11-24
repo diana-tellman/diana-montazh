@@ -74,7 +74,7 @@ main(async () => {
     const bf = join(p.storyboard, "beats.json");
     if (!existsSync(bf)) throw new Error("Нет storyboard/beats.json");
     const a = JSON.parse(readFileSync(bf, "utf8")) as Authored & { gradeFilter?: string };
-    o.authored = { beats: (a.beats ?? []).map((b) => BeatSchema.parse(b)), camera: a.camera, layouts: a.layouts, sfx: a.sfx, voiceSrc: a.voiceSrc };
+    o.authored = { beats: (a.beats ?? []).map((b) => BeatSchema.parse(b)), camera: a.camera, layouts: a.layouts, sfx: a.sfx, voiceSrc: a.voiceSrc, captionWindows: (a as { captionWindows?: Array<[number, number]> }).captionWindows };
     if ((a as { styleOverrides?: object }).styleOverrides) o.styleOverrides = { ...(o.styleOverrides ?? {}), ...(a as { styleOverrides?: object }).styleOverrides };
     if (a.gradeFilter) o.grade = { lut: "", strength: 1, from: "коррекция", filter: a.gradeFilter } as never;
   } else if (opt["no-beats"]) o.authored = null;
@@ -106,6 +106,17 @@ main(async () => {
         writeFileSync(stamp, lutKey);
       }
       graded[a.id] = rel;
+    }
+  }
+
+  // Black-and-white version of the person's video for editorial "mono" backgrounds.
+  if (o.authored?.beats?.some((b) => (b.kind === "poster" && b.bg === "mono") || (b.kind === "punch" && b.mono))) {
+    const mv = project.assets.find((x) => x.role === "main-video");
+    if (mv) {
+      const src = graded[mv.id] ?? mv.prepared;
+      const rel = mv.prepared.replace(/\.mp4$/, ".mono.mp4");
+      if (!existsSync(join(p.root, rel))) await run("ffmpeg", ["-v", "error", "-y", "-i", join(p.root, src), "-map", "0:v:0", "-vf", "hue=s=0,eq=contrast=1.12:brightness=-0.06,format=yuv420p", "-c:v", "libx264", "-preset", "medium", "-crf", "20", "-g", "30", "-movflags", "+faststart", join(p.root, rel)]);
+      o.authored.beats = o.authored.beats.map((b) => ((b.kind === "poster" && b.bg === "mono") || (b.kind === "punch" && b.mono) ? { ...b, monoSrc: rel } : b));
     }
   }
 

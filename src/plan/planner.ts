@@ -43,6 +43,8 @@ export type Authored = {
   camera?: CameraKey[];
   layouts?: Layout[];
   sfx?: Sfx[];
+  /** Show regular captions only inside these windows (posters carry the rest). */
+  captionWindows?: Array<[number, number]>;
   /** Project-relative audio to use instead of the enhanced voice (e.g. to keep original background music). */
   voiceSrc?: string;
 };
@@ -68,7 +70,7 @@ const r3 = (n: number) => Math.round(n * 1000) / 1000;
 
 /** Approximate rendered text width in px (the composition also fits text in the browser). */
 export function estTextWidth(text: string, fontPx: number, st: StyleDef): number {
-  const factors: Record<string, number> = { montserrat: 0.64, inter: 0.56, onest: 0.57, ptserif: 0.55, oswald: 0.45, rubik: 0.59, raleway: 0.58, nunito: 0.57 };
+  const factors: Record<string, number> = { montserrat: 0.64, inter: 0.56, onest: 0.57, ptserif: 0.55, oswald: 0.45, rubik: 0.59, raleway: 0.58, nunito: 0.57, intertight: 0.55, cormorant: 0.45, badscript: 0.5 };
   const f = factors[st.font] ?? 0.6;
   return text.length * fontPx * f * (st.uppercase ? 1.12 : 1) + text.length * st.letterSpacing * fontPx;
 }
@@ -98,13 +100,17 @@ export function buildStoryboard(inp: PlanInput, version = 1): Storyboard {
   // Words shown as a big headline are not repeated in the captions.
   const norm = (x: string) => x.toLowerCase().replace(/ё/g, "е").replace(/[^\p{L}\p{N}]/gu, "");
   for (const b of o.authored?.beats ?? []) {
-    if (b.kind !== "headline" || !b.hideWords) continue;
-    const hw = new Set(b.lines.flatMap((l) => l.text.split(/\s+/)).map(norm));
+    if ((b.kind !== "headline" && b.kind !== "poster") || !b.hideWords) continue;
+    const texts = b.kind === "headline" ? b.lines.map((l) => l.text) : b.items.map((i) => i.text);
+    const hw = new Set(texts.flatMap((x) => x.split(/\s+/)).map(norm));
     for (let i = words.length - 1; i >= 0; i--) {
       const w = words[i]!;
       if (w.start >= b.start - 0.4 && w.start < b.end && hw.has(norm(w.text))) words.splice(i, 1);
     }
   }
+  // Posters carry the speech; regular captions only inside the authored windows.
+  const cw = o.authored?.captionWindows;
+  if (cw) for (let i = words.length - 1; i >= 0; i--) if (!cw.some(([a, b]) => words[i]!.start >= a && words[i]!.start < b)) words.splice(i, 1);
   const phrases = groupPhrases(words, { maxWords: st.maxWordsPerPhrase, maxChars: st.maxCharsPerLine * 2 - 2, pause: 0.45, minDur: 0.6 });
   // Auto emphasis: one long content word every ~3 phrases if the user marked none.
   if (!words.some((w) => w.emphasis && !/\d/.test(w.text))) {
@@ -470,7 +476,7 @@ export function buildStoryboard(inp: PlanInput, version = 1): Storyboard {
     style: { preset: o.style, colors, captionPosition: o.captionPosition, overrides: o.styleOverrides ?? {}, source: o.styleSource ?? o.style },
     grade: o.grade ?? null,
     voice: { src: o.authored?.voiceSrc ?? voice.prepared, gain: 1 },
-    visuals, camera, captions, behindText, callouts: [], layouts, beats, icons, sfx: [...sfx].sort((a, b) => a.t - b.t), progressBar: o.progressBar, scenes, checks,
+    visuals, camera, captions: o.authored?.captionWindows ? captions.filter((c) => o.authored!.captionWindows!.some(([a, b]) => c.start < b && c.end > a)) : captions, behindText, callouts: [], layouts, beats, icons, sfx: [...sfx].sort((a, b) => a.t - b.t), progressBar: o.progressBar, scenes, checks,
     transcriptNote: transcript.notes.join(" "),
   };
 }

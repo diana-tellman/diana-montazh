@@ -8,12 +8,15 @@ export const FONT_FAMILIES = {
   rubik: "'Rubik', 'Inter', sans-serif",
   raleway: "'Raleway', 'Inter', sans-serif",
   nunito: "'Nunito', 'Inter', sans-serif",
+  intertight: "'Inter Tight', 'Inter', sans-serif",
+  cormorant: "'Cormorant Garamond', 'PT Serif', serif",
+  badscript: "'Bad Script', 'Cormorant Garamond', cursive",
 } as const;
 
 /** Visual classes Claude names when describing a reference → bundled font with Kazakh letters. */
 export const FONT_CLASSES: Record<string, FontId> = {
   "modern-sans": "onest", "neutral-sans": "inter", "geometric-bold": "montserrat", serif: "ptserif",
-  condensed: "oswald", rounded: "nunito", "rounded-bold": "rubik", elegant: "raleway",
+  condensed: "oswald", "bold-sans": "intertight", "elegant-serif": "cormorant", script: "badscript", rounded: "nunito", "rounded-bold": "rubik", elegant: "raleway",
 };
 export type FontId = keyof typeof FONT_FAMILIES;
 

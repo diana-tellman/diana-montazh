@@ -6,7 +6,7 @@ import { ensureFontsLoaded, FONT_FAMILIES } from "../design/fonts";
 import { contrastRatio, resolveStyle, type StyleDef } from "../design/styles";
 import { easeInOut } from "../layout/frame";
 import { personBox, personRadius, personWindow, secondaryBox, type LayoutKind } from "../layout/person";
-import { BeatLayer, beatOrder, BrandBg } from "./beats";
+import { BeatLayer, beatOrder, isTransition, TextureBg } from "./beats";
 import { ICONS } from "../design/icons";
 import { captionBand, safeZone } from "../layout/safeZones";
 import { cameraAt, layoutAt, StoryboardSchema, type BehindText, type Callout, type Caption, type Icon, type Layout, type Storyboard, type Visual } from "../storyboard/schema";
@@ -83,8 +83,8 @@ const Secondary: React.FC<{ l: Layout; sb: Storyboard }> = ({ l, sb }) => {
   const push = 1 + 0.06 * (frame / Math.max(1, (l.end - l.start) * sb.fps));
   return (
     <div style={{ position: "absolute", left: b.x, top: b.y, width: b.w, height: b.h, overflow: "hidden", backgroundColor: "#141414" }}>
-      {l.kind === "pip" && (l.secondaryKind === "graphic" || !l.secondary) ? (
-        <BrandBg sb={sb} />
+      {(l.kind === "pip" || l.kind === "split") && (l.secondaryKind === "graphic" || !l.secondary) ? (
+        <TextureBg sb={sb} />
       ) : l.secondaryKind === "graphic" || !l.secondary ? (
         <Graphic sb={sb} />
       ) : l.secondaryKind === "photo" ? (
@@ -355,7 +355,7 @@ export const Edit: React.FC<EditProps> = ({ storyboard: sb, guides, useMattes })
           <BehindTextLayer b={b} sb={sb} useMattes={useMattes} />
         </Sequence>
       ))}
-      {[...sb.beats].filter((b) => b.kind !== "shapeWipe").sort((a, b) => beatOrder(a) - beatOrder(b)).map((b) => (
+      {[...sb.beats].filter((b) => !isTransition(b)).sort((a, b) => beatOrder(a) - beatOrder(b)).map((b) => (
         <Sequence key={b.id} from={f(b.start)} durationInFrames={Math.max(1, f(b.end) - f(b.start))}>
           <BeatLayer b={b} sb={sb} />
         </Sequence>
@@ -375,7 +375,7 @@ export const Edit: React.FC<EditProps> = ({ storyboard: sb, guides, useMattes })
           <CalloutBlock c={c} sb={sb} />
         </Sequence>
       ))}
-      {sb.beats.filter((b) => b.kind === "shapeWipe").map((b) => (
+      {sb.beats.filter(isTransition).map((b) => (
         <Sequence key={b.id} from={f(b.start)} durationInFrames={Math.max(1, f(b.end) - f(b.start))}>
           <BeatLayer b={b} sb={sb} />
         </Sequence>

@@ -16,9 +16,13 @@ const clamp = { extrapolateLeft: "clamp", extrapolateRight: "clamp" } as const;
 
 /** Brand palette for authored beats (falls back to the storyboard colours). */
 export const palette = (sb: Storyboard) => ({
-  bg: "#171719",
+  bg: "#191919",
   fg: sb.style.colors.text,
   accent: sb.style.colors.accent,
+  milk: "#F7F5F2",
+  pink: "#F2D5E4",
+  burgundy: "#8D263E",
+  graphite: "#191919",
 });
 
 const visualAt = (sb: Storyboard, t: number): Visual => sb.visuals.find((x) => t >= x.start && t < x.end) ?? sb.visuals[0]!;
@@ -59,6 +63,26 @@ export const BrandBg: React.FC<{ sb: Storyboard }> = ({ sb }) => {
   );
 };
 
+/** Monochrome editorial texture: deep graphite, fine vertical ribs, soft central light. */
+export const TextureBg: React.FC<{ sb: Storyboard }> = ({ sb }) => {
+  const frame = useCurrentFrame();
+  return (
+    <AbsoluteFill style={{ backgroundColor: "#262626" }}>
+      <AbsoluteFill style={{ background: `radial-gradient(80% 55% at ${50 + 6 * Math.sin(frame / 70)}% 38%, #5a5a5a 0%, #303030 45%, #191919 100%)` }} />
+      <AbsoluteFill style={{ backgroundImage: "repeating-linear-gradient(90deg, rgba(255,255,255,0.045) 0px, rgba(255,255,255,0.045) 2px, transparent 2px, transparent 9px)" }} />
+      <AbsoluteFill style={{ background: "linear-gradient(180deg, rgba(0,0,0,0.25) 0%, transparent 30%, transparent 65%, rgba(0,0,0,0.45) 100%)" }} />
+    </AbsoluteFill>
+  );
+};
+
+/** Black-and-white version of the person's video (pre-rendered by ffmpeg), aligned with the camera. */
+export const MonoVideo: React.FC<{ sb: Storyboard; t: number; src: string; startSec: number; dim?: number }> = ({ sb, t, src, startSec, dim = 0.35 }) => (
+  <AbsoluteFill style={{ overflow: "hidden", backgroundColor: "#191919" }}>
+    <PersonAligned sb={sb} t={t}>{(v) => <Video src={staticFile(src)} muted trimBefore={Math.round((v.srcStart + startSec) * sb.fps)} style={{ width: v.srcW, height: v.srcH }} />}</PersonAligned>
+    <AbsoluteFill style={{ backgroundColor: `rgba(25,25,25,${dim})` }} />
+  </AbsoluteFill>
+);
+
 // ---------------- cutout: background replacement, compare, white outline ----------------
 
 const CutoutBeat: React.FC<{ b: Extract<Beat, { kind: "cutout" }>; sb: Storyboard }> = ({ b, sb }) => {
@@ -94,7 +118,7 @@ const CutoutBeat: React.FC<{ b: Extract<Beat, { kind: "cutout" }>; sb: Storyboar
   const v = visualAt(sb, t);
   return (
     <AbsoluteFill style={{ clipPath: bgClip }}>
-      <BrandBg sb={sb} />
+      {b.bg === "texture" ? <TextureBg sb={sb} /> : <BrandBg sb={sb} />}
       {divider !== null && v.src ? (
         <AbsoluteFill style={{ clipPath: `inset(0 ${W - divider}px 0 0)` }}>
           <PersonAligned sb={sb} t={t}>{(vv) => <Video src={staticFile(vv.src!)} muted trimBefore={Math.round((vv.srcStart + b.start) * sb.fps)} style={{ width: vv.srcW, height: vv.srcH }} />}</PersonAligned>
@@ -186,7 +210,7 @@ const DiagramBeat: React.FC<{ b: Extract<Beat, { kind: "diagram" }>; sb: Storybo
           const x1 = xs[i + 1]! - d / 2 - 10;
           const xe = x0 + (x1 - x0) * k;
           return (
-            <g key={i} stroke={p.fg} strokeWidth={4} strokeLinecap="round" fill="none" opacity={0.85}>
+            <g key={i} stroke={p.milk} strokeWidth={3} strokeLinecap="round" fill="none" opacity={0.85}>
               <line x1={x0} y1={y} x2={xe} y2={y} strokeDasharray="2 14" />
               {k > 0.95 ? <path d={`M ${x1 - 16} ${y - 12} L ${x1} ${y} L ${x1 - 16} ${y + 12}`} /> : null}
             </g>
@@ -198,8 +222,8 @@ const DiagramBeat: React.FC<{ b: Extract<Beat, { kind: "diagram" }>; sb: Storybo
         const draw = interpolate(t, [node.at + 0.05, node.at + 0.45], [0, 1], clamp);
         const last = i === n - 1;
         return (
-          <div key={i} style={{ position: "absolute", left: xs[i]! - d / 2, top: y - d / 2, width: d, height: d, borderRadius: d * 0.28, background: last ? p.accent : "rgba(245,245,243,0.07)", border: `2px solid ${last ? p.accent : "rgba(245,245,243,0.3)"}`, display: "flex", alignItems: "center", justifyContent: "center", opacity: k, transform: `scale(${0.85 + 0.15 * k})` }}>
-            <svg width={d * 0.52} height={d * 0.52} viewBox="0 0 24 24" fill="none" stroke={p.fg} strokeWidth={1.7} strokeLinecap="round" strokeLinejoin="round">
+          <div key={i} style={{ position: "absolute", left: xs[i]! - d / 2, top: y - d / 2, width: d, height: d, borderRadius: d * 0.28, background: last ? p.pink : "rgba(247,245,242,0.04)", border: `2px solid ${last ? p.pink : "rgba(247,245,242,0.55)"}`, display: "flex", alignItems: "center", justifyContent: "center", opacity: k, transform: `scale(${0.85 + 0.15 * k})` }}>
+            <svg width={d * 0.52} height={d * 0.52} viewBox="0 0 24 24" fill="none" stroke={last ? p.graphite : p.milk} strokeWidth={1.4} strokeLinecap="round" strokeLinejoin="round">
               {(ICONS[node.icon] ?? []).map((pd, j) => <path key={j} d={pd} pathLength={1} strokeDasharray={1} strokeDashoffset={1 - draw} />)}
             </svg>
           </div>
@@ -214,10 +238,15 @@ const DiagramBeat: React.FC<{ b: Extract<Beat, { kind: "diagram" }>; sb: Storybo
 const PunchBeat: React.FC<{ b: Extract<Beat, { kind: "punch" }>; sb: Storyboard }> = ({ b, sb }) => {
   const frame = useCurrentFrame();
   const { fps } = useVideoConfig();
+  const t = b.start + frame / fps;
   const k = interpolate(frame, [0, (b.end - b.start) * fps], [0, 1], { ...clamp, easing: Easing.inOut(Easing.quad) });
   const x = -60 + 220 * k;
+  const monoOn = b.mono && b.monoSrc && k > 0.15 && k < 0.62;
   return (
+    <>
+    {monoOn ? <MonoVideo sb={sb} t={t} src={b.monoSrc!} startSec={b.start} dim={0.1} /> : null}
     <AbsoluteFill style={{ background: `linear-gradient(115deg, transparent ${x - 18}%, rgba(255,255,255,0.32) ${x}%, transparent ${x + 18}%)`, mixBlendMode: "screen", opacity: Math.sin(Math.PI * k) * 0.9 + 0.1 }} />
+    </>
   );
 };
 
@@ -236,6 +265,93 @@ const ShapeWipeBeat: React.FC<{ b: Extract<Beat, { kind: "shapeWipe" }>; sb: Sto
   );
 };
 
+// ---------------- editorial poster typography ----------------
+
+type PosterItem = Extract<Beat, { kind: "poster" }>["items"][number];
+const ROLE_FONT: Record<PosterItem["role"], { family: string; weight: number; style: "normal" | "italic"; lh: number; ls: string }> = {
+  sans: { family: FONT_FAMILIES.intertight, weight: 900, style: "normal", lh: 0.9, ls: "-0.045em" },
+  serif: { family: FONT_FAMILIES.cormorant, weight: 600, style: "normal", lh: 1.0, ls: "0" },
+  italic: { family: FONT_FAMILIES.cormorant, weight: 700, style: "italic", lh: 1.0, ls: "-0.01em" },
+  script: { family: FONT_FAMILIES.badscript, weight: 400, style: "normal", lh: 1.1, ls: "0" },
+};
+
+const PosterText: React.FC<{ it: PosterItem; sb: Storyboard; t: number; end: number }> = ({ it, sb, t, end }) => {
+  const p = palette(sb);
+  const W = sb.width;
+  const H = sb.height;
+  const f = ROLE_FONT[it.role];
+  const px = it.size * W;
+  const color = { milk: p.milk, pink: p.pink, burgundy: p.burgundy, graphite: p.graphite }[it.color];
+  const outAt = Math.min(end, it.until ?? end) - 0.22;
+  const e = interpolate(t, [outAt, outAt + 0.22], [0, 1], { ...clamp, easing: EASE_OUT });
+  const rp = interpolate(t, [it.at, it.at + (it.anim === "script" ? 0.55 : 0.34)], [0, 1], { ...clamp, easing: EASE_IN });
+  const mv = it.move ? interpolate(t, [it.move.at, it.move.at + 0.45], [0, 1], { ...clamp, easing: Easing.bezier(0.65, 0, 0.35, 1) }) : 0;
+  const dy = it.move ? it.move.dy * H * mv : 0;
+  const sc = (it.move ? 1 + (it.move.scale - 1) * mv : 1) * (it.anim === "scale" ? 0.93 + 0.07 * rp + 0.035 * interpolate(t, [it.at + 0.34, outAt], [0, 1], clamp) : 1);
+  const base: React.CSSProperties = {
+    fontFamily: f.family, fontWeight: f.weight, fontStyle: f.style, fontSize: px, lineHeight: f.lh, letterSpacing: it.tracking ? `${it.tracking}em` : f.ls,
+    color, whiteSpace: "nowrap",
+    textShadow: it.role === "sans" ? "0 6px 30px rgba(0,0,0,0.28)" : "0 0 22px rgba(247,245,242,0.22), 0 4px 20px rgba(0,0,0,0.35)",
+  };
+  let inner: React.ReactNode;
+  if (it.anim === "stagger") {
+    inner = [...it.text].map((ch, i) => {
+      const k = interpolate(t, [it.at + i * 0.028, it.at + i * 0.028 + 0.3], [0, 1], { ...clamp, easing: EASE_IN });
+      return <span key={i} style={{ display: "inline-block", transform: `translateY(${(1 - k) * 105}%)`, whiteSpace: "pre" }}>{ch}</span>;
+    });
+  } else inner = it.text;
+  const reveal: React.CSSProperties =
+    it.anim === "mask" || it.anim === "scale" ? { transform: `translateY(${(1 - rp) * 105}%)` }
+    : it.anim === "script" ? { clipPath: `inset(-20% ${(1 - rp) * 100}% -20% -5%)`, transform: `translateX(${(1 - rp) * -3}%)`, opacity: Math.min(1, rp * 2) }
+    : it.anim === "fade" ? { opacity: rp, transform: `translateY(${(1 - rp) * 12}px)` } : {};
+  const masked = it.anim === "mask" || it.anim === "stagger" || it.anim === "scale";
+  return (
+    <div style={{ position: "absolute", left: it.x * W, top: it.y * H + dy, transform: `translate(-50%, -50%) rotate(${it.rotate}deg) scale(${sc})`, opacity: 1 - e }}>
+      <div style={{ overflow: masked ? "hidden" : "visible", padding: masked ? `0 ${px * 0.06}px ${px * 0.06}px` : 0 }}>
+        <div style={{ ...base, ...reveal, translate: `0 ${-e * 40}%` }}>{inner}</div>
+      </div>
+    </div>
+  );
+};
+
+const PosterBeat: React.FC<{ b: Extract<Beat, { kind: "poster" }>; sb: Storyboard }> = ({ b, sb }) => {
+  const frame = useCurrentFrame();
+  const { fps } = useVideoConfig();
+  const t = b.start + frame / fps;
+  const bgIn = interpolate(t, [b.start, b.start + 0.3], [0, 1], { ...clamp, easing: EASE_IN });
+  const bgOut = interpolate(t, [b.end - 0.25, b.end], [1, 0], clamp);
+  const bgO = Math.min(bgIn, bgOut);
+  return (
+    <AbsoluteFill>
+      {b.bg === "mono" && b.monoSrc ? <AbsoluteFill style={{ opacity: bgO }}><MonoVideo sb={sb} t={t} src={b.monoSrc} startSec={b.start} /></AbsoluteFill> : null}
+      {b.bg === "texture" ? <AbsoluteFill style={{ opacity: bgO }}><TextureBg sb={sb} /></AbsoluteFill> : null}
+      {b.bg === "shade-top" ? <AbsoluteFill style={{ opacity: bgO, background: "linear-gradient(180deg, rgba(25,25,25,0.72) 0%, rgba(25,25,25,0.35) 28%, transparent 45%)" }} /> : null}
+      {b.bg === "shade-bottom" ? <AbsoluteFill style={{ opacity: bgO, background: "linear-gradient(0deg, rgba(25,25,25,0.82) 0%, rgba(25,25,25,0.55) 35%, transparent 58%)" }} /> : null}
+      {b.items.filter((it) => !(b.behind && it.front)).map((it, i) => <PosterText key={i} it={it} sb={sb} t={t} end={b.end} />)}
+      {b.behind ? <Cutout sb={sb} t={t} dir={b.matteDir} start={b.matteStart} /> : null}
+      {b.behind ? b.items.filter((it) => it.front).map((it, i) => <PosterText key={`f${i}`} it={it} sb={sb} t={t} end={b.end} />) : null}
+    </AbsoluteFill>
+  );
+};
+
+const TypeWipeBeat: React.FC<{ b: Extract<Beat, { kind: "typeWipe" }>; sb: Storyboard }> = ({ b, sb }) => {
+  const frame = useCurrentFrame();
+  const { fps } = useVideoConfig();
+  const W = sb.width;
+  const p = palette(sb);
+  const k = interpolate(frame, [0, (b.end - b.start) * fps], [0, 1], { ...clamp, easing: Easing.bezier(0.65, 0, 0.35, 1) });
+  const pw = W * 1.7;
+  const x = W - k * (W + pw);
+  const px = W * 0.3;
+  return (
+    <AbsoluteFill>
+      <div style={{ position: "absolute", left: x, top: 0, width: pw, height: sb.height, background: p.milk, display: "flex", alignItems: "center", justifyContent: "center", boxShadow: "0 0 60px rgba(0,0,0,0.35)" }}>
+        <div style={{ fontFamily: FONT_FAMILIES.intertight, fontWeight: 900, fontSize: px, letterSpacing: "-0.05em", color: p.graphite, whiteSpace: "nowrap", transform: `translateX(${(0.5 - k) * 18}%)` }}>{b.text}</div>
+      </div>
+    </AbsoluteFill>
+  );
+};
+
 export const BeatLayer: React.FC<{ b: Beat; sb: Storyboard }> = ({ b, sb }) => {
   switch (b.kind) {
     case "cutout": return <CutoutBeat b={b} sb={sb} />;
@@ -243,8 +359,12 @@ export const BeatLayer: React.FC<{ b: Beat; sb: Storyboard }> = ({ b, sb }) => {
     case "diagram": return <DiagramBeat b={b} sb={sb} />;
     case "punch": return <PunchBeat b={b} sb={sb} />;
     case "shapeWipe": return <ShapeWipeBeat b={b} sb={sb} />;
+    case "poster": return <PosterBeat b={b} sb={sb} />;
+    case "typeWipe": return <TypeWipeBeat b={b} sb={sb} />;
   }
 };
 
 /** Draw order: backgrounds/cutouts → graphics → headlines → transitions. */
-export const beatOrder = (b: Beat) => ({ cutout: 0, diagram: 1, punch: 2, headline: 3, shapeWipe: 4 })[b.kind];
+export const beatOrder = (b: Beat) => ({ cutout: 0, diagram: 1, punch: 2, poster: 3, headline: 3, shapeWipe: 4, typeWipe: 4 })[b.kind];
+/** Transitions are drawn above captions. */
+export const isTransition = (b: Beat) => b.kind === "shapeWipe" || b.kind === "typeWipe";

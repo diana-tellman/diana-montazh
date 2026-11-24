@@ -24,6 +24,13 @@ import "@fontsource/raleway/800.css";
 import "@fontsource/nunito/700.css";
 import "@fontsource/nunito/800.css";
 import "@fontsource/nunito/900.css";
+import "@fontsource/inter-tight/600.css";
+import "@fontsource/inter-tight/800.css";
+import "@fontsource/inter-tight/900.css";
+import "@fontsource/cormorant-garamond/600.css";
+import "@fontsource/cormorant-garamond/600-italic.css";
+import "@fontsource/cormorant-garamond/700-italic.css";
+import "@fontsource/bad-script/400.css";
 import { continueRender, delayRender } from "remotion";
 
 export { FONT_FAMILIES, FONT_CLASSES, type FontId } from "./fontNames";
@@ -45,8 +52,12 @@ export function ensureFontsLoaded(): void {
     ["Rubik", [500, 700, 800]],
     ["Raleway", [500, 700, 800]],
     ["Nunito", [700, 800, 900]],
+    ["Inter Tight", [600, 800, 900]],
+    ["Cormorant Garamond", [600]],
+    ["Bad Script", [400]],
   ] as const;
-  Promise.all(faces.flatMap(([fam, ws]) => ws.map((w) => document.fonts.load(`${w} 64px '${fam}'`, KZ))))
+  const italics = ["600 italic 64px 'Cormorant Garamond'", "700 italic 64px 'Cormorant Garamond'"];
+  Promise.all([...faces.flatMap(([fam, ws]) => ws.map((w) => document.fonts.load(`${w} 64px '${fam}'`, KZ))), ...italics.map((f) => document.fonts.load(f, KZ))])
     .then(() => document.fonts.ready)
     .then(() => continueRender(handle))
     .catch(() => continueRender(handle));

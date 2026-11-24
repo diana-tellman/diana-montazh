@@ -32,7 +32,10 @@
     "bench": "tsx scripts/bench.ts"
   },
   "dependencies": {
+    "@fontsource/bad-script": "5.3.0",
+    "@fontsource/cormorant-garamond": "5.3.0",
     "@fontsource/inter": "5.3.0",
+    "@fontsource/inter-tight": "5.3.0",
     "@fontsource/montserrat": "5.3.0",
     "@fontsource/nunito": "5.3.0",
     "@fontsource/onest": "5.3.1",

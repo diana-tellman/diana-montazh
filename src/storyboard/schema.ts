@@ -116,6 +116,7 @@ const MatteRef = { matteDir: z.string().nullable().default(null), matteStart: z.
 export const BeatSchema = z.discriminatedUnion("kind", [
   z.object({
     kind: z.literal("cutout"), id: z.string(), start: T, end: T,
+    bg: z.enum(["brand", "texture"]).default("brand"),
     wipeIn: z.enum(["up", "circle", "none"]).default("up"), wipeOut: z.enum(["down", "circle", "none"]).default("down"),
     compare: z.tuple([T, T]).nullable().default(null),
     outline: z.tuple([T, T]).nullable().default(null),
@@ -133,14 +134,45 @@ export const BeatSchema = z.discriminatedUnion("kind", [
     kind: z.literal("diagram"), id: z.string(), start: T, end: T,
     nodes: z.array(z.object({ icon: z.string(), at: T })).min(2), y: z.number(),
   }),
-  z.object({ kind: z.literal("punch"), id: z.string(), start: T, end: T }),
+  z.object({ kind: z.literal("punch"), id: z.string(), start: T, end: T, mono: z.boolean().default(false), monoSrc: z.string().nullable().default(null) }),
+  /**
+   * Editorial typographic poster: layered lines in three roles (bold sans / elegant serif italic /
+   * script), each with its own reveal time; the whole composition exits cleanly at `end`.
+   */
+  z.object({
+    kind: z.literal("poster"), id: z.string(), start: T, end: T,
+    bg: z.enum(["none", "shade-top", "shade-bottom", "mono", "texture"]).default("none"),
+    behind: z.boolean().default(false),
+    hideWords: z.boolean().default(true),
+    monoSrc: z.string().nullable().default(null),
+    items: z.array(z.object({
+      text: z.string(),
+      role: z.enum(["sans", "serif", "italic", "script"]),
+      size: z.number(),
+      y: z.number(),
+      x: z.number().default(0.5),
+      color: z.enum(["milk", "pink", "burgundy", "graphite"]).default("milk"),
+      at: T,
+      anim: z.enum(["mask", "stagger", "script", "fade", "scale"]).default("mask"),
+      tracking: z.number().default(0),
+      rotate: z.number().default(0),
+      /** Editorial slide: at `move.at` the item glides by dy (fraction of height) and scales. */
+      move: z.object({ at: T, dy: z.number(), scale: z.number().default(1) }).nullable().default(null),
+      until: T.nullable().default(null),
+      /** With a behind-the-person poster: draw this item in front of the person. */
+      front: z.boolean().default(false),
+    })).min(1),
+    ...MatteRef,
+  }),
+  /** Typographic transition: a milk panel carrying a giant word sweeps across and reveals the next composition. */
+  z.object({ kind: z.literal("typeWipe"), id: z.string(), start: T, end: T, text: z.string() }),
   z.object({ kind: z.literal("shapeWipe"), id: z.string(), start: T, end: T }),
 ]);
 export type Beat = z.infer<typeof BeatSchema>;
 
 export const SfxSchema = z.object({
   t: Sec,
-  kind: z.enum(["pop", "whoosh", "tick", "soft", "riser", "impact", "swipe", "click"]),
+  kind: z.enum(["pop", "whoosh", "tick", "soft", "riser", "impact", "swipe", "click", "sweep", "tonal", "trace"]),
   /** Linear gain (0..1) — kept well under the voice. */
   gain: z.number().min(0).max(1),
   reason: z.string(),
