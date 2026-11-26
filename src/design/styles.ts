@@ -33,13 +33,13 @@ export type StyleDef = {
   letterSpacing: number;
   colors: Colors;
   /** How the active (being spoken) word is shown. */
-  active: "pill" | "color" | "scale" | "underline";
+  active: "pill" | "color" | "scale" | "underline" | "none";
   /** Words not yet spoken: hidden (karaoke reveal) or dimmed. */
   upcoming: "dim" | "hidden" | "visible";
   /** Readability treatment behind text. */
   backdrop: "shadow" | "glass" | "none";
   /** Entrance of a caption block. */
-  enter: "pop" | "rise" | "fade" | "slide";
+  enter: "pop" | "rise" | "fade" | "slide" | "cut";
   maxWordsPerPhrase: number;
   maxCharsPerLine: number;
   emphasisScale: number;
@@ -106,11 +106,11 @@ export const STYLES: Record<StylePreset, StyleDef> = {
   },
   bordeaux: {
     label: "Bordeaux",
-    description: "Бордо / қызғылт / қара / ақ: 1–3 сөзден субтитр, белсенді сөздің астында қызғылт сызық, үлкен тар бордо тақырыптар, жазу қолтаңбасы, шыны виджеттер.",
-    font: "onest", weight: 800, uppercase: false, size: 0.05, lineHeight: 1.06, letterSpacing: -0.015,
-    colors: { text: "#FFFFFF", accent: "#9B1C40", onAccent: "#FFFFFF", upcoming: "rgba(255,255,255,0.5)", accent2: "#F4A6C0" },
-    active: "underline", upcoming: "dim", backdrop: "shadow", enter: "rise", maxWordsPerPhrase: 3, maxCharsPerLine: 18, emphasisScale: 1.06,
-    titleFont: "oswald", titleWeight: 700, titleUppercase: true, accentFont: "badscript", accentItalic: false, preferY: 0.6, panel: "dark",
+    description: "Бордо / қызғылт / қара / ақ. Субтитр — бір сөзден, жуан геометриялық шрифт (Montserrat Alternates), анимациясыз ауысады; видеода ақ, ақ нүктелі фонда қара. Схемалар — ақ фонда жылтыр бордо карточкалар.",
+    font: "montalt", weight: 800, uppercase: false, size: 0.064, lineHeight: 1.0, letterSpacing: -0.035,
+    colors: { text: "#FFFFFF", accent: "#9B1C40", onAccent: "#FFFFFF", upcoming: "#FFFFFF", accent2: "#F4A6C0" },
+    active: "none", upcoming: "visible", backdrop: "shadow", enter: "cut", maxWordsPerPhrase: 1, maxCharsPerLine: 16, emphasisScale: 1.0,
+    titleFont: "oswald", titleWeight: 700, titleUppercase: true, accentFont: "badscript", accentItalic: false, preferY: 0.66, panel: "light",
   },
 };
 
@@ -159,10 +159,10 @@ export const StyleOverridesSchema = z
     size: z.number().min(0.03).max(0.08),
     lineHeight: z.number().min(0.9).max(1.4),
     letterSpacing: z.number().min(-0.05).max(0.15),
-    active: z.enum(["pill", "color", "scale", "underline"]),
+    active: z.enum(["pill", "color", "scale", "underline", "none"]),
     upcoming: z.enum(["dim", "hidden", "visible"]),
     backdrop: z.enum(["shadow", "glass", "none"]),
-    enter: z.enum(["pop", "rise", "fade", "slide"]),
+    enter: z.enum(["pop", "rise", "fade", "slide", "cut"]),
     maxWordsPerPhrase: z.number().int().min(1).max(8),
     maxCharsPerLine: z.number().int().min(8).max(32),
     emphasisScale: z.number().min(1).max(1.3),

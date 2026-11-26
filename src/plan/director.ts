@@ -65,8 +65,8 @@ const LEX: Record<Exclude<Intent, "question" | "neutral">, { stems: string[]; ph
   },
   number: { stems: [], phrases: [] },
   cta: {
-    stems: ["жазылыңыз", "жазылып", "жазыл", "пікір", "коммент", "сілтеме", "подпиш", "подписыв", "сохран", "поделит", "ссылк", "subscrib", "follow", "comment", "share"],
-    phrases: ["сақтап ал", "сақтап қой", "бөлісіңіз", "досыңа жібер", "link in bio", "save this", "в профиле", "профильде"],
+    stems: ["жазылыңыз", "жазылыңдар", "жазылың", "пікірге", "пікір жаз", "коммент", "сілтеме", "подпиш", "подписыв", "сохран", "поделит", "ссылк", "subscrib", "follow", "comment", "share"],
+    phrases: ["жазылып ал", "жазылып қой", "сақтап ал", "сақтап қой", "бөлісіңіз", "досыңа жібер", "link in bio", "save this", "в профиле", "профильде"],
   },
   process: {
     stems: ["қадам", "біріншіден", "екіншіден", "үшіншіден", "алдымен", "сосын", "соңында", "ақырында", "процесс", "алгоритм", "нұсқаулық", "шаг", "сначала", "затем", "потом", "во-первых", "во-вторых", "в-третьих", "далее", "инструкц", "step", "steps", "firstly", "secondly", "then", "next", "finally", "process"],
@@ -94,7 +94,7 @@ const LEX: Record<Exclude<Intent, "question" | "neutral">, { stems: string[]; ph
 const STOP = new Set(
   (
     "және мен да де та те бен пен ал бірақ немесе егер сосын содан кейін одан алдымен біріншіден екіншіден үшіншіден соңында ақырында мысалы мысалға мысал айталық мәселен " +
-    "онда мұнда сонда осында бастысы басты маңыздысы бұл осы сол ол біз сіз сен мен менің сенің оның бар жоқ емес керек болады болып еді деп деген үшін қалай не неге қандай қазір бұрын тек енді өте ең " +
+    "ба бе ма ме па пе деп дейді дейсің ойлайсың ойлаймын думаешь думаю think онда мұнда сонда осында бастысы басты маңыздысы бұл осы сол ол біз сіз сен мен менің сенің оның бар жоқ емес керек болады болып еді деп деген үшін қалай не неге қандай қазір бұрын тек енді өте ең " +
     "главное важно и а но или если потом затем сначала далее во-первых во-вторых в-третьих например допустим это этот эта то тот как что чтобы для на в во с со к по из у о об же ли бы не нужно надо очень вот там тут сейчас раньше " +
     "and or but if then next first second finally for example the a an to of in on with is are was it this that you we i so just very now before after than vs versus instead"
   ).split(" "),
@@ -225,6 +225,21 @@ export function extractSteps(phrases: TWord[][]): Array<{ text: string; at: numb
     }
   }
   return out.slice(0, 4);
+}
+
+/** Meaning is read per SENTENCE (independent of how captions are cut: 1 word or 4). */
+export function sentencePhrases(words: TWord[]): TWord[][] {
+  const out: TWord[][] = [];
+  let cur: TWord[] = [];
+  words.forEach((w, i) => {
+    cur.push(w);
+    const next = words[i + 1];
+    if (!next || /[.!?…]["»)]*$/.test(w.text) || next.start - w.end >= 0.7 || cur.length >= 14) {
+      out.push(cur);
+      cur = [];
+    }
+  });
+  return out;
 }
 
 export type DirectorInput = {

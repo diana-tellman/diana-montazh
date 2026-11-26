@@ -33,6 +33,9 @@ import "@fontsource/geologica/800.css";
 import "@fontsource/cormorant-garamond/600.css";
 import "@fontsource/cormorant-garamond/700-italic.css";
 import "@fontsource/bad-script/400.css";
+import "@fontsource/montserrat-alternates/700.css";
+import "@fontsource/montserrat-alternates/800.css";
+import "@fontsource/montserrat-alternates/900.css";
 import { continueRender, delayRender } from "remotion";
 
 export { FONT_FAMILIES, FONT_CLASSES, type FontId } from "./fontNames";
@@ -58,6 +61,7 @@ export function ensureFontsLoaded(): void {
     ["Geologica", [600, 800]],
     ["Cormorant Garamond", [600]],
     ["Bad Script", [400]],
+    ["Montserrat Alternates", [700, 800, 900]],
   ] as const;
   const loads = faces.flatMap(([fam, ws]) => ws.map((w) => document.fonts.load(`${w} 64px '${fam}'`, KZ)));
   loads.push(document.fonts.load(`italic 700 64px 'Cormorant Garamond'`, KZ));

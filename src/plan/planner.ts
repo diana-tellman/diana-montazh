@@ -10,7 +10,7 @@ import type { BehindText, Callout, CameraKey, Caption, Check, Scene, Sfx, Storyb
 import { cameraAt, layoutAt } from "../storyboard/schema";
 import type { Icon, Layout, Widget } from "../storyboard/schema";
 import { cardRect, clipToBox, personAt } from "../layout/person";
-import { autoBeats, directionsToBeats, headlineCard, mergeBeats, parseNumber, type DirectorBeat, type Directions } from "./director";
+import { autoBeats, directionsToBeats, headlineCard, mergeBeats, parseNumber, sentencePhrases, type DirectorBeat, type Directions } from "./director";
 import { iconForWord } from "../design/icons";
 import { groupPhrases, parseEmphasis, splitLines, type TWord } from "./phrases";
 
@@ -64,7 +64,7 @@ const r3 = (n: number) => Math.round(n * 1000) / 1000;
 
 /** Approximate rendered text width in px (the composition also fits text in the browser). */
 export function estTextWidth(text: string, fontPx: number, st: StyleDef): number {
-  const factors: Record<string, number> = { montserrat: 0.64, inter: 0.56, onest: 0.57, ptserif: 0.55, oswald: 0.45, rubik: 0.59, raleway: 0.58, nunito: 0.57, intertight: 0.53, geologica: 0.6, cormorant: 0.46, badscript: 0.52 };
+  const factors: Record<string, number> = { montserrat: 0.64, inter: 0.56, onest: 0.57, ptserif: 0.55, oswald: 0.45, rubik: 0.59, raleway: 0.58, nunito: 0.57, intertight: 0.53, geologica: 0.6, cormorant: 0.46, badscript: 0.52, montalt: 0.68 };
   const f = factors[st.font] ?? 0.6;
   return text.length * fontPx * f * (st.uppercase ? 1.12 : 1) + text.length * st.letterSpacing * fontPx;
 }
@@ -231,8 +231,14 @@ export function buildStoryboard(inp: PlanInput, version = 1): Storyboard {
 
   // ---------- meaning → beats (what is said decides how the frame is built) ----------
   const hasPerson = project.mode === "expert-video" && !!mainVideo?.info.video;
-  const auto = autoBeats({ phrases, duration, hasPerson });
-  const manual = inp.directions ? directionsToBeats(inp.directions, phrases) : [];
+  // Meaning is read per sentence; layouts still snap to caption boundaries (same word objects).
+  const sp = sentencePhrases(words);
+  const capIdx = new Map<TWord, number>();
+  phrases.forEach((p, i) => p.forEach((w) => capIdx.set(w, i)));
+  const cwStart = (w: TWord) => capWindow(capIdx.get(w) ?? 0).start;
+  const cwEnd = (w: TWord) => capWindow(capIdx.get(w) ?? phrases.length - 1).end;
+  const auto = autoBeats({ phrases: sp, duration, hasPerson });
+  const manual = inp.directions ? directionsToBeats(inp.directions, sp) : [];
   const beats: DirectorBeat[] = mergeBeats(auto, manual, inp.directions?.replaceAuto ?? false);
   const semantic = o.semantic !== false && o.layout === "auto";
 
@@ -249,8 +255,8 @@ export function buildStoryboard(inp: PlanInput, version = 1): Storyboard {
   if (semantic) {
     for (const b of beats) {
       if (!b.card || !(b.intent === "example" || b.intent === "compare" || b.intent === "process" || b.intent === "list" || (b.intent === "number" && !hasPerson))) continue;
-      const start = r3(capWindow(b.p0).start);
-      const end = r3(Math.min(duration, capWindow(b.p1).end));
+      const start = r3(cwStart(sp[b.p0]![0]!));
+      const end = r3(Math.min(duration, cwEnd(sp[b.p1]!.at(-1)!)));
       if (end - start < 1.2 || layouts.some((l) => start < l.end && end > l.start)) continue;
       // Without a speaker on screen every meaning layout is a full-screen explainer graphic.
       const kind = !hasPerson ? "explainer" : b.intent === "example" ? "pip" : b.intent === "compare" ? "compare" : "explainer";
@@ -263,25 +269,25 @@ export function buildStoryboard(inp: PlanInput, version = 1): Storyboard {
   const voiceOnly = project.mode === "voice-over-visuals" && visuals.every((v) => v.kind === "graphic");
   if (semantic && voiceOnly) {
     let i = 0;
-    while (i < phrases.length) {
-      const s0 = capWindow(i).start;
-      if (layouts.some((l) => s0 >= l.start - 0.01 && s0 < l.end)) { i++; continue; }
+    while (i < sp.length) {
+      const s0 = cwStart(sp[i]![0]!);
+      if (layouts.some((l) => s0 >= l.start - 0.01 && s0 < l.end - 0.05)) { i++; continue; }
       let j = i;
-      while (j + 1 < phrases.length && capWindow(j).end - s0 < 2.4 && !/[.!?…]$/.test(phrases[j]!.at(-1)!.text) && !layouts.some((l) => capWindow(j + 1).start >= l.start - 0.01 && capWindow(j + 1).start < l.end)) j++;
-      const e0 = Math.min(duration, capWindow(j).end);
-      const ws = phrases.slice(i, j + 1).flat();
+      // One card per sentence; very short sentences are joined (≥ 2.4 s on screen).
+      while (j + 1 < sp.length && cwEnd(sp[j]!.at(-1)!) - s0 < 2.4 && !layouts.some((l) => cwStart(sp[j + 1]![0]!) >= l.start - 0.01 && cwStart(sp[j + 1]![0]!) < l.end - 0.05)) j++;
+      const e0 = Math.min(duration, cwEnd(sp[j]!.at(-1)!));
+      const ws = sp.slice(i, j + 1).flat();
       const n = parseNumber(ws);
       const card = n ? { variant: "counter" as const, title: "", label: n.label || undefined, value: n.value, suffix: n.suffix, items: [{ text: `${n.value}`, icon: null, at: n.at }] } : headlineCard(ws);
-      // A short tail of the previous scene ("…аласың.") stays with that scene instead of its own headline.
-      const prevL = layouts.find((l) => Math.abs(l.end - s0) < 0.02);
-      if (prevL && e0 - s0 < 1.6 && !n && /[.!?…]$/.test(phrases[j]!.at(-1)!.text)) {
-        prevL.end = r3(e0);
-        i = j + 1;
-        continue;
-      }
-      if (card && e0 - s0 >= 0.8) layouts.push({ id: "x", start: r3(s0), end: r3(e0), kind: "explainer", ...graphicSec, intent: n ? "number" : "neutral", card });
+      if (card && e0 - s0 >= 0.6) layouts.push({ id: "x", start: r3(s0), end: r3(e0), kind: "explainer", ...graphicSec, intent: n ? "number" : "neutral", card });
       i = j + 1;
     }
+    // No empty background between scenes: each scene lasts until the next one starts.
+    layouts.sort((a, b) => a.start - b.start);
+    layouts.forEach((l, k) => {
+      if (k === 0) l.start = 0;
+      l.end = r3(layouts[k + 1]?.start ?? duration);
+    });
   }
   if (project.mode === "expert-video") {
     if (o.layout === "circle" || o.layout === "split") {
@@ -315,8 +321,8 @@ export function buildStoryboard(inp: PlanInput, version = 1): Storyboard {
   // ---------- emotion: speaker full frame + slow push-in onto the face ----------
   if (o.cameraEnergy > 0) {
     for (const b of beats.filter((x) => x.intent === "emotion")) {
-      const s0 = phrases[b.p0]![0]!.start;
-      const s1 = Math.min(duration, phrases[b.p1]!.at(-1)!.end + 0.3);
+      const s0 = sp[b.p0]![0]!.start;
+      const s1 = Math.min(duration, sp[b.p1]!.at(-1)!.end + 0.3);
       if (s1 - s0 < 0.8 || layouts.some((l) => s0 < l.end && s1 > l.start)) continue;
       const v = visualAt(s0);
       if (v.kind !== "video") continue;
@@ -422,15 +428,15 @@ export function buildStoryboard(inp: PlanInput, version = 1): Storyboard {
     type Cand = { t0: number; t1: number; big: string; label?: string; script?: string; count?: BehindText["count"]; scriptAt?: number; why: string };
     const cands: Cand[] = [];
     // Hook: the first phrase gets a headline (label + BIG keyword + script tail).
-    const p0 = phrases.find((p) => p[0]!.start < 2.5 && p.length >= 2);
+    const p0 = sp.find((p) => p[0]!.start < 2.5 && p.length >= 2);
     if (p0) {
       const hc = headlineCard(p0);
       const key = hc?.items[0];
-      if (key && key.text.length <= 12) cands.push({ t0: Math.max(0, p0[0]!.start - 0.05), t1: Math.min(duration, Math.max(p0.at(-1)!.end + 0.5, p0[0]!.start + 2.2)), big: key.text.toUpperCase(), label: hc!.label, script: hc!.script, scriptAt: p0.find((w) => strip(w.text) === hc!.script?.split(" ")[0])?.start, why: "hook" });
+      if (key && key.text.length <= 12) cands.push({ t0: Math.max(0, p0[0]!.start - 0.05), t1: Math.min(duration, p0[0]!.start + 3, Math.max(p0.at(-1)!.end + 0.5, p0[0]!.start + 2.2)), big: key.text.toUpperCase(), label: hc!.label, script: hc!.script, scriptAt: p0.find((w) => strip(w.text) === hc!.script?.split(" ")[0])?.start, why: "hook" });
     }
     // Numbers: count up in the big line.
     for (const b of beats.filter((x) => x.intent === "number" && x.card?.value !== undefined)) {
-      const ph = phrases[b.p0]!;
+      const ph = sp[b.p0]!;
       const v = b.card!.value!;
       if (v >= 100 && b.card!.suffix !== "%") continue; // big audience numbers → glass counter widget
       cands.push({ t0: Math.max(0, ph[0]!.start - 0.05), t1: Math.min(duration, Math.max(ph.at(-1)!.end + 0.6, ph[0]!.start + 2.2)), big: `${v}${b.card!.suffix === "%" ? "%" : ""}`, label: b.card!.label, script: b.card!.suffix && b.card!.suffix !== "%" ? b.card!.suffix : undefined, count: { from: 0, to: v, prefix: "", suffix: b.card!.suffix === "%" ? "%" : "" }, why: "number" });
@@ -522,8 +528,8 @@ export function buildStoryboard(inp: PlanInput, version = 1): Storyboard {
   const callouts: Callout[] = [];
   const capBox = (c: Caption) => ({ x0: 0.08, x1: 0.92, y0: c.y - 0.01, y1: c.y + (c.lines.length * st.size * short * c.scale * st.lineHeight + st.size * short * 0.5) / H + 0.01 });
   for (const b of beats.filter((x) => (x.intent === "key" || x.intent === "cta") && x.plate)) {
-    const t0 = r3(Math.max(0, phrases[b.p0]![0]!.start - 0.05));
-    const t1 = r3(Math.min(duration, Math.max(t0 + 2.2, phrases[b.p1]!.at(-1)!.end + 0.6)));
+    const t0 = r3(Math.max(0, sp[b.p0]![0]!.start - 0.05));
+    const t1 = r3(Math.min(duration, Math.max(t0 + 2.2, sp[b.p1]!.at(-1)!.end + 0.6)));
     if (layouts.some((l) => l.kind !== "full" && t0 < l.end && t1 > l.start)) continue;
     if (behindText.some((x) => t0 < x.end && t1 > x.start)) continue;
     const text = b.plate!.length > 26 ? b.plate!.split(" ").reduce((acc, w) => ((acc + " " + w).trim().length <= 24 ? (acc + " " + w).trim() : acc), "") : b.plate!;
@@ -571,8 +577,8 @@ export function buildStoryboard(inp: PlanInput, version = 1): Storyboard {
       const zone = faceZoneOut(t0, t1, 0.015);
       const occ = occupied(t0, t1);
       const pts: Array<[number, number]> = banner
-        ? [[0.5, safe.y0 + hN / 2 + 0.01], [0.5, (zone?.y1 ?? 0.45) + hN / 2 + 0.015], [0.5, 0.5]]
-        : [[0.26, 0.3], [0.74, 0.3], [0.26, 0.5], [0.74, 0.5], [0.26, 0.4], [0.74, 0.4]];
+        ? [[0.5, safe.y0 + hN / 2 + 0.01], [0.5, (zone?.y1 ?? 0.45) + hN / 2 + 0.015], [0.5, 0.5], [0.5, 0.58], [0.5, 0.64]]
+        : [[0.26, 0.3], [0.74, 0.3], [0.26, 0.5], [0.74, 0.5], [0.26, 0.4], [0.74, 0.4], [0.26, 0.56], [0.74, 0.56], [0.5, 0.56], [0.26, 0.62], [0.5, 0.62], [0.26, 0.2], [0.74, 0.2]];
       return pts.find(([x, y]) => {
         const box = { x0: x - w / 2, x1: x + w / 2, y0: y - hN / 2, y1: y + hN / 2 };
         return insideSafe(box, safe) && !(zone && overlaps(box, zone)) && !occ.some((r) => overlaps(box, r));
@@ -618,7 +624,7 @@ export function buildStoryboard(inp: PlanInput, version = 1): Storyboard {
 
   // A plate never duplicates the subtitle: captions whose words are all on the plate are dropped while it shows.
   const nw = (x: string) => x.toLowerCase().replace(/ё/g, "е").replace(/[^\p{L}\p{N}]/gu, "");
-  for (const k of [...callouts, ...behindText.filter((b) => b.label || b.script).map((b) => ({ start: b.start, end: b.end, text: [b.label, b.text, b.script].filter(Boolean).join(" ") }))]) {
+  for (const k of [...callouts, ...behindText.map((b) => ({ start: b.start, end: b.end, text: [b.label, b.text, b.script].filter(Boolean).join(" ") }))]) {
     const on = new Set(k.text.split(/\s+/).map(nw).filter(Boolean));
     for (let i = captions.length - 1; i >= 0; i--) {
       const c = captions[i]!;
@@ -630,23 +636,33 @@ export function buildStoryboard(inp: PlanInput, version = 1): Storyboard {
   // ---------- SFX (sparse, under the voice) ----------
   const sfx: Sfx[] = [];
   if (o.sfx) {
+    // Timing rules measured on the reference reels:
+    //  voice-only explainer ≈ 1 sound / s, exactly on each element (lag ≈ 0);
+    //  expert on camera ≈ 1 sound / 3 s, only on graphics, ~0.1 s after the motion starts; whoosh leads a scene change by ~0.15 s.
+    const gap = voiceOnly ? 0.6 : 1.2;
     const add = (t: number, kind: Sfx["kind"], gain: number, reason: string) => {
-      if (t < 0.15 || t > duration - 0.2 || sfx.some((s) => Math.abs(s.t - t) < 1.0)) return;
+      if (t < 0.15 || t > duration - 0.2 || sfx.some((s) => Math.abs(s.t - t) < gap)) return;
       sfx.push({ t: r3(t), kind, gain, reason });
     };
+    const lag = voiceOnly ? 0 : 0.1;
     behindText.forEach((b) => add(b.start - 0.12, "whoosh", 0.2, `Жазу бастың артында: ${b.text}`));
     behindText.filter((b) => b.count).forEach((b) => add(b.start + 0.1, "tickroll", 0.15, `Санау: ${b.text}`));
-    layouts.forEach((l) => add(l.start - 0.08, l.kind === "explainer" ? "swipe" : "whoosh", 0.16, `Макет: ${l.kind}`));
+    layouts.forEach((l, i) => {
+      const joined = i > 0 && Math.abs(layouts[i - 1]!.end - l.start) < 0.02;
+      add(l.start - 0.15, l.kind === "explainer" ? (joined ? "swipe" : "whoosh") : "whoosh", joined ? 0.13 : 0.16, `Макет: ${l.kind}`);
+    });
     // Each card element sounds exactly when it appears (= when its word is spoken).
-    layouts.forEach((l) => l.card?.items.forEach((it, k) => add(it.at, l.card!.variant === "steps" ? "click" : l.card!.variant === "compare" && k === 1 ? "impact" : "pop", l.card!.variant === "compare" && k === 1 ? 0.14 : 0.15, `Карточка: ${it.text}`)));
-    callouts.forEach((c) => add(c.start, c.kind === "cta" ? "pop" : "soft", 0.15, `Плашка: ${c.text}`));
+    const cardSfx = (v: string, k: number): Sfx["kind"] => (v === "steps" || v === "flow" ? "click" : v === "compare" && k === 1 ? "impact" : v === "counter" ? "tickroll" : "pop");
+    layouts.forEach((l) => l.card?.items.forEach((it, k) => add(it.at + lag, cardSfx(l.card!.variant, k), l.card!.variant === "compare" && k === 1 ? 0.14 : 0.15, `Карточка: ${it.text}`)));
+    callouts.forEach((c) => add(c.start + lag, c.kind === "cta" ? "pop" : "soft", 0.15, `Плашка: ${c.text}`));
     const wsfx: Record<Widget["kind"], Sfx["kind"]> = { counter: "tickroll", ring: "tickroll", search: "type", comment: "type", notify: "ding", toggle: "click", timer: "tick" };
-    widgets.forEach((x) => add(x.start + (x.kind === "search" || x.kind === "comment" ? 0.25 : 0.05), wsfx[x.kind], x.kind === "notify" ? 0.14 : 0.16, `Виджет ${x.kind}: ${x.text}`));
-    icons.forEach((ic) => add(ic.start, "pop", 0.16, `Иконка: ${ic.name}`));
-    camera.filter((k) => k.move === "cut" && k.t > 0.3).forEach((k) => add(k.t - 0.05, "soft", 0.14, "Склейка/смена плана"));
+    widgets.forEach((x) => add(x.start + (x.kind === "search" || x.kind === "comment" ? 0.25 : 0.1), wsfx[x.kind], x.kind === "notify" ? 0.14 : 0.16, `Виджет ${x.kind}: ${x.text}`));
+    icons.forEach((ic) => add(ic.start + lag, "pop", 0.16, `Иконка: ${ic.name}`));
+    // Plain jump cuts of the speaker stay silent (as in the references); only real scene changes get a sound.
+    if (!hasPerson) camera.filter((k) => k.move === "cut" && k.t > 0.3).forEach((k) => add(k.t - 0.05, "soft", 0.14, "Смена плана"));
     captions.forEach((c) => {
       const e = c.lines.flat().find((w) => w.emphasis);
-      if (e) add(e.start, "pop", 0.18, `Акцент: ${e.text}`);
+      if (e) add(e.start, "pop", 0.16, `Акцент: ${e.text}`);
     });
     sfx.sort((a, b) => a.t - b.t);
   }
@@ -709,7 +725,7 @@ export function buildStoryboard(inp: PlanInput, version = 1): Storyboard {
       title: layCard ? `${INTENT_LABEL[layCard.intent ?? "neutral"]}: ${layCard.card!.items.map((x) => x.text).join(" · ")}` : bt[0] ? `Жазу артта: ${bt[0].text}` : caps[0] ? caps[0].lines.flat().map((w) => w.text).join(" ").slice(0, 40) : "—",
       onScreenText: caps.map((c) => c.lines.map((l) => l.map((w) => (w.emphasis ? `*${w.text}*` : w.text)).join(" ")).join(" / ")).join(" | "),
       camera: v.kind === "video" ? `зум ×${cam.zoom.toFixed(2)}${camera.some((k) => k.move === "ease" && k.t > s0 && k.t <= s1) ? ", плавный наезд" : ""}, ${v.framing === "contain" ? "видео в рамке + размытый фон" : "лицо в верхней трети"}` : v.kind === "photo" ? "фото, медленный наезд (Ken Burns)" : "графический фон",
-      animation: `${st.label}: ${st.enter === "pop" ? "слова выпрыгивают" : st.enter === "rise" ? "слова поднимаются" : st.enter === "slide" ? "слова выезжают" : "плавное появление"}, активное слово — ${st.active === "pill" ? "плашка" : st.active === "color" ? "цвет" : st.active === "scale" ? "увеличение" : "подчёркивание"}${bt.length ? "; крупное слово за головой" : ""}${lay.length ? `; ${lay.map((l) => LAYOUT_LABEL[l.kind] ?? "весь кадр").join(", ")}` : ""}${beats.filter((b) => phrases[b.p0]![0]!.start < s1 && phrases[b.p1]!.at(-1)!.end > s0).map((b) => `; мағынасы: ${b.reason}`).join("")}${callouts.filter((c) => c.start < s1 && c.end > s0).map((c) => `; плашка «${c.text}»`).join("")}${ics.length ? `; иконки: ${ics.map((x) => `${x.name} («${x.word}»)`).join(", ")}` : ""}`,
+      animation: `${st.label}: ${st.enter === "pop" ? "слова выпрыгивают" : st.enter === "rise" ? "слова поднимаются" : st.enter === "slide" ? "слова выезжают" : "плавное появление"}, активное слово — ${st.active === "pill" ? "плашка" : st.active === "color" ? "цвет" : st.active === "scale" ? "увеличение" : "подчёркивание"}${bt.length ? "; крупное слово за головой" : ""}${lay.length ? `; ${lay.map((l) => LAYOUT_LABEL[l.kind] ?? "весь кадр").join(", ")}` : ""}${beats.filter((b) => sp[b.p0]![0]!.start < s1 && sp[b.p1]!.at(-1)!.end > s0).map((b) => `; мағынасы: ${b.reason}`).join("")}${callouts.filter((c) => c.start < s1 && c.end > s0).map((c) => `; плашка «${c.text}»`).join("")}${ics.length ? `; иконки: ${ics.map((x) => `${x.name} («${x.word}»)`).join(", ")}` : ""}`,
       sfx: fx.length ? fx.map((x) => `${x.kind} ${x.t.toFixed(1)}с`).join(", ") : "—",
       checks: checks.filter((c) => c.at !== null && c.at >= s0 && c.at < s1),
     };
@@ -723,7 +739,7 @@ export function buildStoryboard(inp: PlanInput, version = 1): Storyboard {
     voice: { src: voice.prepared, gain: 1 },
     visuals, camera, captions, behindText, callouts, layouts, icons, sfx, widgets, progressBar: o.progressBar, scenes, checks,
     music: o.music ? { src: o.music, gain: 0.2, duck: 0.07, speech: speechSpans(words) } : null,
-    beats: beats.map((b) => ({ start: r3(phrases[b.p0]![0]!.start), end: r3(phrases[b.p1]!.at(-1)!.end), intent: b.intent, reason: b.reason, source: b.source })),
+    beats: beats.map((b) => ({ start: r3(sp[b.p0]![0]!.start), end: r3(sp[b.p1]!.at(-1)!.end), intent: b.intent, reason: b.reason, source: b.source })),
     transcriptNote: transcript.notes.join(" "),
   };
 }

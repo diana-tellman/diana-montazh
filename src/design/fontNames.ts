@@ -12,13 +12,14 @@ export const FONT_FAMILIES = {
   geologica: "'Geologica', 'Onest', sans-serif",
   cormorant: "'Cormorant Garamond', 'PT Serif', Georgia, serif",
   badscript: "'Bad Script', 'Cormorant Garamond', cursive",
+  montalt: "'Montserrat Alternates', 'Montserrat', sans-serif",
 } as const;
 
 /** Visual classes Claude names when describing a reference → bundled font with Kazakh letters. */
 export const FONT_CLASSES: Record<string, FontId> = {
   "modern-sans": "onest", "neutral-sans": "inter", "geometric-bold": "montserrat", serif: "ptserif",
   condensed: "oswald", rounded: "nunito", "rounded-bold": "rubik", elegant: "raleway",
-  "tight-display": "intertight", "soft-geometric": "geologica", "editorial-serif": "cormorant", script: "badscript", handwritten: "badscript",
+  "tight-display": "intertight", "soft-geometric": "geologica", "editorial-serif": "cormorant", script: "badscript", handwritten: "badscript", "geometric-alt": "montalt", "bold-reels": "montalt",
 };
 export type FontId = keyof typeof FONT_FAMILIES;
 

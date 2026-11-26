@@ -40,7 +40,8 @@ const Graphic: React.FC<{ sb: Storyboard }> = ({ sb }) => {
   const light = resolveStyle(sb.style.preset, sb.style.overrides).panel === "light";
   const base = light ? "#F4F1EE" : "#0D0B0C";
   return (
-    <AbsoluteFill style={{ background: `radial-gradient(120% 80% at ${50 + 18 * Math.sin(t * 0.35)}% ${30 + 10 * Math.cos(t * 0.27)}%, ${light ? "#FFFFFF" : a} 0%, ${base} 62%)` }}>
+    <AbsoluteFill style={{ background: light ? `radial-gradient(90% 60% at 50% 40%, #FAF8F7 0%, #E9E6E4 100%)` : `radial-gradient(120% 80% at ${50 + 18 * Math.sin(t * 0.35)}% ${30 + 10 * Math.cos(t * 0.27)}%, ${a} 0%, ${base} 62%)` }}>
+      {light ? <AbsoluteFill style={{ backgroundImage: "radial-gradient(rgba(0,0,0,0.13) 1.6px, transparent 1.8px)", backgroundSize: "34px 34px", backgroundPosition: `${(t * 4) % 34}px 0` }} /> : null}
       {[0, 1, 2].map((i) => (
         <div
           key={i}
@@ -155,11 +156,16 @@ const CardView: React.FC<{ card: Card; l: Layout; sb: Storyboard; st: StyleDef }
   const col = sb.style.colors;
   const dur = (l.end - l.start) * fps;
   const out = interpolate(frame, [dur - LAYOUT_OUT * fps, dur], [1, 0], { extrapolateLeft: "clamp", extrapolateRight: "clamp" });
-  const title: React.CSSProperties = { fontFamily: FONT_FAMILIES[st.titleFont], fontWeight: st.titleWeight, textTransform: st.titleUppercase ? "uppercase" : "none", letterSpacing: "-0.02em", lineHeight: 1.02, color: st.panel === "light" && l.kind === "explainer" ? "#141414" : "#FFFFFF", textShadow: st.panel === "light" && l.kind === "explainer" ? "none" : "0 6px 30px rgba(0,0,0,0.35)" };
+  const title: React.CSSProperties = { fontFamily: FONT_FAMILIES[st.titleFont], fontWeight: st.titleWeight, textTransform: st.titleUppercase ? "uppercase" : "none", letterSpacing: "-0.02em", lineHeight: 1.02, color: st.panel === "light" ? "#141414" : "#FFFFFF", textShadow: st.panel === "light" ? "none" : "0 6px 30px rgba(0,0,0,0.35)" };
   const accentLine: React.CSSProperties = { fontFamily: FONT_FAMILIES[st.accentFont], fontStyle: st.accentItalic ? "italic" : "normal", fontWeight: st.accentItalic ? 700 : 600, color: col.accent === "#141414" ? "#FFFFFF" : col.accent };
-  const glass: React.CSSProperties = { background: "rgba(16,16,20,0.58)", border: "1.5px solid rgba(255,255,255,0.22)", boxShadow: "inset 0 1px 0 rgba(255,255,255,0.25), 0 20px 50px rgba(0,0,0,0.35)" };
+  const lightPanel = st.panel === "light";
+  // Light panel: glossy accent cards (gradient + top highlight + soft coloured shadow); otherwise dark glass.
+  const glass: React.CSSProperties = lightPanel
+    ? { background: `linear-gradient(180deg, ${col.accent}EE 0%, ${col.accent} 55%, #5E0F26 100%)`, border: "1.5px solid rgba(255,255,255,0.28)", boxShadow: `inset 0 2px 0 rgba(255,255,255,0.35), inset 0 -10px 24px rgba(0,0,0,0.18), 0 22px 46px ${col.accent}55` }
+    : { background: "rgba(16,16,20,0.58)", border: "1.5px solid rgba(255,255,255,0.22)", boxShadow: "inset 0 1px 0 rgba(255,255,255,0.25), 0 20px 50px rgba(0,0,0,0.35)" };
   const badge = (d: number, p: number): React.CSSProperties => ({ width: d, height: d, borderRadius: "50%", background: col.accent, display: "flex", alignItems: "center", justifyContent: "center", transform: `scale(${p}) rotate(${(1 - p) * -25}deg)`, boxShadow: "0 12px 30px rgba(0,0,0,0.35)", flex: "none" });
   const onAcc = col.onAccent;
+  const panelBadge = (d: number, p: number): React.CSSProperties => ({ ...badge(d, p), ...(lightPanel ? { background: "#FFFFFF" } : {}) });
 
   if (card.variant === "example") {
     const it = card.items[0];
@@ -170,10 +176,10 @@ const CardView: React.FC<{ card: Card; l: Layout; sb: Storyboard; st: StyleDef }
     return (
       <div style={{ position: "absolute", left: x, top: y, width: w, height: h, borderRadius: 44, ...glass, opacity: out, display: "flex", flexDirection: "column", alignItems: "center", justifyContent: "center", gap: h * 0.06 }}>
         {card.title ? <div style={{ ...accentLine, fontSize: W * 0.05, opacity: p }}>{card.title}</div> : null}
-        <div style={badge(W * 0.12, p)}>
-          <IconGlyph name={it.icon} size={W * 0.07} color={onAcc} draw={Math.min(1, p * 1.2)} fallback="→" />
+        <div style={panelBadge(W * 0.12, p)}>
+          <IconGlyph name={it.icon} size={W * 0.07} color={lightPanel ? col.accent : onAcc} draw={Math.min(1, p * 1.2)} fallback="→" />
         </div>
-        <div style={{ ...title, fontSize: px, textAlign: "center", padding: "0 4%", clipPath: `inset(0 0 ${(1 - p) * 100}% 0)`, transform: `translateY(${(1 - p) * 30}px)` }}>{label}</div>
+        <div style={{ ...title, ...(lightPanel ? { color: "#FFFFFF", textShadow: "0 2px 10px rgba(0,0,0,0.25)" } : {}), fontSize: px, textAlign: "center", padding: "0 4%", clipPath: `inset(0 0 ${(1 - p) * 100}% 0)`, transform: `translateY(${(1 - p) * 30}px)` }}>{label}</div>
       </div>
     );
   }
@@ -188,10 +194,10 @@ const CardView: React.FC<{ card: Card; l: Layout; sb: Storyboard; st: StyleDef }
       const label = st.titleUppercase ? it.text.toUpperCase() : it.text;
       return (
         <div style={{ width: colW, height: h * 0.82, borderRadius: 40, ...glass, ...(hi ? { border: `3px solid ${col.accent}` } : {}), display: "flex", flexDirection: "column", alignItems: "center", justifyContent: "center", gap: h * 0.06, opacity: p, transform: `translateX(${side * (1 - p) * 120}px)` }}>
-          <div style={badge(W * 0.13, p)}>
-            <IconGlyph name={it.icon} size={W * 0.075} color={onAcc} draw={p} fallback={side < 0 ? "A" : "B"} />
+          <div style={panelBadge(W * 0.13, p)}>
+            <IconGlyph name={it.icon} size={W * 0.075} color={lightPanel ? col.accent : onAcc} draw={p} fallback={side < 0 ? "A" : "B"} />
           </div>
-          <div style={{ ...title, fontSize: fitPx(label, colW * 0.8, W * 0.07, st.titleUppercase ? 0.78 : 0.64), textAlign: "center", padding: "0 6%" }}>{label}</div>
+          <div style={{ ...title, ...(lightPanel ? { color: "#FFFFFF", textShadow: "0 2px 10px rgba(0,0,0,0.25)" } : {}), fontSize: fitPx(label, colW * 0.8, W * 0.07, st.titleUppercase ? 0.78 : 0.64), textAlign: "center", padding: "0 6%" }}>{label}</div>
         </div>
       );
     };
@@ -231,7 +237,7 @@ const CardView: React.FC<{ card: Card; l: Layout; sb: Storyboard; st: StyleDef }
         {card.script ? (
           <div style={{ width: w, marginTop: -px * 0.12, transform: "rotate(-3deg)" }}>
             <FitLine maxWidth={w * 0.92} frame={frame}>
-              <div style={{ ...accentLine, color: a2, fontSize: W * 0.085, whiteSpace: "nowrap", clipPath: `inset(0 ${(1 - sp) * 100}% 0 0)` }}>{card.script}</div>
+              <div style={{ ...accentLine, color: light ? col.accent : a2, fontSize: W * 0.085, whiteSpace: "nowrap", clipPath: `inset(0 ${(1 - sp) * 100}% 0 0)` }}>{card.script}</div>
             </FitLine>
           </div>
         ) : null}
@@ -256,7 +262,7 @@ const CardView: React.FC<{ card: Card; l: Layout; sb: Storyboard; st: StyleDef }
         </svg>
         {card.label ? <div style={{ fontFamily: FONT_FAMILIES[st.font], fontWeight: 600, fontSize: W * 0.042, color: ink, opacity: 0.85, zIndex: 1, textAlign: "center", maxWidth: W * 0.5 }}>{card.label}</div> : null}
         <div style={{ ...title, color: light ? col.accent : "#FFFFFF", fontSize: fitPx(num, W * 0.5, W * 0.2, 0.55), zIndex: 1 }}>{num}</div>
-        {card.suffix && card.suffix !== "%" ? <div style={{ ...accentLine, color: a2, fontSize: W * 0.07, zIndex: 1, transform: "rotate(-3deg)" }}>{card.suffix}</div> : null}
+        {card.suffix && card.suffix !== "%" ? <div style={{ ...accentLine, color: light ? col.accent : a2, fontSize: W * 0.07, zIndex: 1, transform: "rotate(-3deg)" }}>{card.suffix}</div> : null}
       </div>
     );
   }
@@ -376,7 +382,7 @@ const LayoutOverlay: React.FC<{ l: Layout; sb: Storyboard; st: StyleDef }> = ({ 
     return (
       <AbsoluteFill style={{ clipPath: `circle(${Math.max(0.01, p) * 101}% at 50% 42%)` }}>
         <Graphic sb={sb} />
-        <AbsoluteFill style={{ backgroundImage: "linear-gradient(rgba(255,255,255,0.05) 1px, transparent 1px), linear-gradient(90deg, rgba(255,255,255,0.05) 1px, transparent 1px)", backgroundSize: "72px 72px" }} />
+        {st.panel === "light" ? null : <AbsoluteFill style={{ backgroundImage: "linear-gradient(rgba(255,255,255,0.05) 1px, transparent 1px), linear-gradient(90deg, rgba(255,255,255,0.05) 1px, transparent 1px)", backgroundSize: "72px 72px" }} />}
         <AbsoluteFill style={{ background: st.panel === "light" ? "rgba(255,255,255,0.0)" : "rgba(10,10,12,0.35)" }} />
         {l.card ? <CardView card={l.card} l={l} sb={sb} st={st} /> : null}
       </AbsoluteFill>
@@ -595,9 +601,15 @@ const CaptionBlock: React.FC<{ c: Caption; sb: Storyboard; st: StyleDef }> = ({ 
     st.enter === "pop" ? { transform: `scale(${0.86 + 0.14 * inP})`, opacity: outP * Math.min(1, inP * 1.5) }
     : st.enter === "rise" ? { transform: `translateY(${(1 - inP) * 26}px)`, opacity: outP * inP }
     : st.enter === "slide" ? { transform: `translateX(${(1 - inP) * -60}px) rotate(-2deg)`, opacity: outP }
+    : st.enter === "cut" ? { opacity: 1 } // hard cut word to word (reference: one bold word at a time)
     : { opacity: outP * interpolate(frame, [0, 6], [0, 1], { extrapolateRight: "clamp" }) };
 
-  const textDeco: React.CSSProperties =
+  // On a light explainer panel the caption turns black (no shadow), like the reference.
+  const lsNow = layoutStateAt(sb.layouts, t);
+  const visNow = sb.visuals.find((v) => t >= v.start && t < v.end);
+  const lightBg = lsNow.layout?.secondaryKind === "graphic" && lsNow.p > 0.5;
+  const onLight = st.panel === "light" && ((lsNow.kind === "explainer" && lsNow.p > 0.5) || visNow?.kind === "graphic" || (lsNow.kind === "pip" && lightBg) || (lsNow.kind === "compare" && lightBg && c.y < 0.5));
+  const textDeco: React.CSSProperties = onLight ? {} :
     // No outline: a tight dark shadow + a soft halo keeps white text readable on any background.
     st.backdrop === "shadow" ? { textShadow: "0 1px 2px rgba(0,0,0,0.75), 0 2px 8px rgba(0,0,0,0.6), 0 0 22px rgba(0,0,0,0.4)" }
     : {};
@@ -622,9 +634,9 @@ const CaptionBlock: React.FC<{ c: Caption; sb: Storyboard; st: StyleDef }> = ({ 
               const wf = Math.max(0, Math.round((t - w.start) * fps));
               const pop = spring({ frame: wf, fps, config: { damping: 13, stiffness: 220 } });
               const hidden = st.upcoming === "hidden" && !spoken;
-              let color = st.upcoming === "dim" && !spoken ? col.upcoming : col.text;
-              const marker = w.emphasis && !accentAsText && !(active && st.active === "pill") && sb.style.preset !== "lime" && sb.style.preset !== "editorial" && !(col.accent2 && st.active === "underline");
-              if (w.emphasis && col.accent2 && st.active === "underline") color = col.accent2;
+              let color = onLight ? (st.upcoming === "dim" && !spoken ? "rgba(20,20,20,0.45)" : "#141414") : st.upcoming === "dim" && !spoken ? col.upcoming : col.text;
+              const marker = w.emphasis && !accentAsText && !(active && st.active === "pill") && sb.style.preset !== "lime" && sb.style.preset !== "editorial" && !(col.accent2 && (st.active === "underline" || st.active === "none"));
+              if (w.emphasis && col.accent2 && (st.active === "underline" || st.active === "none")) color = onLight ? col.accent : col.accent2;
               const under = active && st.active === "underline" ? interpolate(wf, [0, 4], [0, 1], { extrapolateRight: "clamp" }) : 0;
               if (w.emphasis && sb.style.preset === "editorial") color = col.accent;
               if (w.emphasis && !(active && st.active === "pill") && accentAsText) color = sb.style.preset === "lime" ? col.text : col.accent;

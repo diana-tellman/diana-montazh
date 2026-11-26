@@ -30,9 +30,8 @@ import { validateStoryboard } from "../src/plan/validate";
 import { loadFaces, loadTranscript, revokeApproval, saveStoryboard, sbFile } from "../src/storyboard/store";
 import { FONT_CLASSES } from "../src/design/fontNames";
 import { referenceOptions, SIZE } from "../src/plan/reference";
-import { autoBeats, DirectionsSchema, type Directions } from "../src/plan/director";
-import { groupPhrases, parseEmphasis } from "../src/plan/phrases";
-import { resolveStyle } from "../src/design/styles";
+import { autoBeats, DirectionsSchema, sentencePhrases, type Directions } from "../src/plan/director";
+import { parseEmphasis } from "../src/plan/phrases";
 import { main, out, parseArgs, str } from "./_cli";
 
 const run = promisify(execFile);
@@ -124,9 +123,8 @@ main(async () => {
   const sb = buildStoryboard({ project, transcript, faces, fills, graded, options: o, directions }, prevVersion + 1);
 
   // work/beats.json — phrases with times + automatic meaning decisions, for Claude to review.
-  const st = resolveStyle(o.style, o.styleOverrides);
   const words = transcript.segments.flatMap((s) => s.words.map((w) => ({ ...parseEmphasis(w.text), start: w.startMs / 1000, end: w.endMs / 1000 })));
-  const phrases = groupPhrases(words, { maxWords: st.maxWordsPerPhrase, maxChars: st.maxCharsPerLine * 2 - 2, pause: 0.45, minDur: 0.6 });
+  const phrases = sentencePhrases(words);
   const auto = autoBeats({ phrases, duration: sb.durationSec, hasPerson: project.mode === "expert-video" });
   writeFileSync(join(p.work, "beats.json"), JSON.stringify({
     note: "Автоматические решения по смыслу. Чтобы изменить — запишите storyboard/directions.json (формат: src/plan/director.ts DirectionsSchema) и перезапустите plan.",
