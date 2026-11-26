@@ -23,10 +23,13 @@ description: Главный режиссёр монтажа. Используй,
 
 **2б. Референс.** Если пользователь прислал образец («осындай болсын», «как в этом ролике») — skill `reference-match` (стиль, цвет, темп как в референсе; его явные пожелания важнее).
 
+**2в. Премиальный / дизайнерский монтаж** (подробный бриф, «премиум», «моушн», типографика, референсы-картинки) — skill `editorial-motion` (постеры, плашки, переходы, звук, animatic).
+
 **3. План.** `npm run plan -- <id> [опции]` — сам запустит распознавание речи и анализ лица.
 Опции из пожеланий/вкусов: `--style brand|minimal|kinetic|glass|lime`, `--text <цвет>`, `--accent <цвет>`, `--format 9:16|4:5|1:1|16:9`, `--platform reels|stories|shorts|tiktok|feed|youtube`, `--position auto|top|middle|bottom`, `--no-behind`, `--no-sfx`, `--no-progress`, `--energy 0|1|2`, `--layout auto|full|circle|split`, `--no-icons`. Доп. фото/клипы к своему видео → автоматически split-screen моменты. Подробнее — skills `smart-layout`, `kinetic-typography`, `smart-captions`.
 
 **4. Сториборд.** `npm run storyboard -- <id>` → посмотри `storyboard/contact-sheet.jpg` сам (Read), исправь очевидное, затем отправь пользователю **contact-sheet.jpg** и **storyboard.html** через SendUserFile. Коротко перечисли: длительность, стиль, сцены, предупреждения, и спроси: «Мақұлдайсыз ба? / Одобряете?».
+Для движения и звука сделай превью: `npm run animatic -- <id>` и отправь его тоже.
 **Стоп. Дальше — только после явного «мақұлдаймын / одобряю / ок / иә, жасай бер».**
 
 **5. Правки** — skill `storyboard-builder`. После любой правки снова показать сториборд и ждать одобрения.

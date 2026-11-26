@@ -1,0 +1,650 @@
+{
+ "voiceSrc": "work/voice-master.wav",
+ "gradeFilter": "eq=contrast=1.05:saturation=1.04:gamma=0.985",
+ "camera": [
+  {
+   "t": 0,
+   "zoom": 1.4,
+   "ax": 0.481,
+   "ay": 0.296,
+   "move": "cut",
+   "dur": 0.9
+  },
+  {
+   "t": 2.77,
+   "zoom": 1.0,
+   "ax": 0.524,
+   "ay": 0.309,
+   "move": "ease",
+   "dur": 0.35
+  },
+  {
+   "t": 4.85,
+   "zoom": 1.0,
+   "ax": 0.512,
+   "ay": 0.328,
+   "move": "cut",
+   "dur": 0.9
+  },
+  {
+   "t": 9.15,
+   "zoom": 1.22,
+   "ax": 0.501,
+   "ay": 0.336,
+   "move": "cut",
+   "dur": 0.9
+  },
+  {
+   "t": 10.42,
+   "zoom": 1.0,
+   "ax": 0.501,
+   "ay": 0.336,
+   "move": "cut",
+   "dur": 0.9
+  },
+  {
+   "t": 11.85,
+   "zoom": 1.0,
+   "ax": 0.496,
+   "ay": 0.336,
+   "move": "cut",
+   "dur": 0.9
+  },
+  {
+   "t": 14.85,
+   "zoom": 1.25,
+   "ax": 0.523,
+   "ay": 0.327,
+   "move": "cut",
+   "dur": 0.9
+  },
+  {
+   "t": 16.19,
+   "zoom": 1.37,
+   "ax": 0.523,
+   "ay": 0.327,
+   "move": "ease",
+   "dur": 0.15
+  },
+  {
+   "t": 16.8,
+   "zoom": 1.25,
+   "ax": 0.523,
+   "ay": 0.327,
+   "move": "ease",
+   "dur": 0.5
+  },
+  {
+   "t": 18.45,
+   "zoom": 1.0,
+   "ax": 0.507,
+   "ay": 0.347,
+   "move": "cut",
+   "dur": 0.9
+  },
+  {
+   "t": 24.0,
+   "zoom": 1.15,
+   "ax": 0.501,
+   "ay": 0.367,
+   "move": "cut",
+   "dur": 0.9
+  }
+ ],
+ "layouts": [
+  {
+   "id": "l-split",
+   "start": 11.85,
+   "end": 14.85,
+   "kind": "split",
+   "secondary": null,
+   "secondaryKind": "graphic",
+   "secondaryW": 1080,
+   "secondaryH": 1920
+  }
+ ],
+ "sfxTheme": "cinematic",
+ "captionWindows": [
+  [
+   9.1,
+   10.42
+  ]
+ ],
+ "beats": [
+  {
+   "kind": "poster",
+   "id": "p0",
+   "start": 0.3,
+   "end": 2.4,
+   "bg": "shade-top",
+   "anchorY": 0.15,
+   "items": [
+    {
+     "text": "Claude-пен",
+     "role": "label",
+     "size": 0.045,
+     "at": 0.38,
+     "color": "milk",
+     "anim": "word"
+    },
+    {
+     "text": "монтаж жасап жүрсің",
+     "role": "italic",
+     "size": 0.1,
+     "at": 0.72,
+     "color": "milk",
+     "anim": "word"
+    }
+   ]
+  },
+  {
+   "kind": "poster",
+   "id": "p1",
+   "start": 2.42,
+   "end": 4.8,
+   "bg": "shade-top",
+   "behind": true,
+   "anchorY": 0.15,
+   "items": [
+    {
+     "text": "БАРЛЫҚ",
+     "role": "sans",
+     "size": 0.22,
+     "at": 2.5,
+     "color": "pink",
+     "anim": "stagger"
+    },
+    {
+     "text": "МҮМКІНДІГІН",
+     "role": "sans",
+     "size": 0.13,
+     "at": 2.84,
+     "color": "pink",
+     "anim": "stagger"
+    },
+    {
+     "text": "пайдаланып жүрсің бе?",
+     "role": "script",
+     "size": 0.072,
+     "at": 3.53,
+     "color": "milk",
+     "anim": "word",
+     "y": 0.575,
+     "front": true,
+     "rotate": -3
+    }
+   ]
+  },
+  {
+   "kind": "cutout",
+   "id": "c1",
+   "start": 4.85,
+   "end": 9.15,
+   "bg": "texture",
+   "wipeIn": "up",
+   "wipeOut": "down",
+   "compare": [
+    5.9,
+    7.6
+   ],
+   "outline": [
+    8.12,
+    9.05
+   ]
+  },
+  {
+   "kind": "poster",
+   "id": "p2",
+   "start": 4.87,
+   "end": 5.85,
+   "behind": true,
+   "anchorY": 0.165,
+   "items": [
+    {
+     "text": "ФОНДЫ",
+     "role": "sans",
+     "size": 0.21,
+     "at": 4.89,
+     "color": "pink",
+     "anim": "stagger"
+    },
+    {
+     "text": "ауыстыру",
+     "role": "script",
+     "size": 0.1,
+     "at": 5.2,
+     "color": "milk",
+     "anim": "script",
+     "dx": 0.12,
+     "rotate": -5
+    }
+   ]
+  },
+  {
+   "kind": "poster",
+   "id": "p3",
+   "start": 5.9,
+   "end": 7.6,
+   "behind": true,
+   "anchorY": 0.16,
+   "items": [
+    {
+     "text": "АДАМДЫ",
+     "role": "sans",
+     "size": 0.15,
+     "at": 5.9,
+     "color": "pink",
+     "anim": "mask"
+    },
+    {
+     "text": "фоннан бөліп алу",
+     "role": "italic",
+     "size": 0.09,
+     "at": 6.37,
+     "color": "milk",
+     "anim": "word"
+    }
+   ]
+  },
+  {
+   "kind": "poster",
+   "id": "p4",
+   "start": 8.1,
+   "end": 9.1,
+   "behind": true,
+   "anchorY": 0.16,
+   "items": [
+    {
+     "text": "ақ контур",
+     "role": "italic",
+     "size": 0.13,
+     "at": 8.12,
+     "color": "milk",
+     "anim": "script"
+    },
+    {
+     "text": "жасау",
+     "role": "label",
+     "size": 0.04,
+     "at": 8.69,
+     "color": "milk",
+     "anim": "tracking"
+    }
+   ]
+  },
+  {
+   "kind": "poster",
+   "id": "p5",
+   "start": 10.42,
+   "end": 11.85,
+   "bg": "texture",
+   "anchorY": 0.46,
+   "items": [
+    {
+     "text": "МӘТІН",
+     "role": "sans",
+     "size": 0.3,
+     "at": 10.46,
+     "color": "pink",
+     "anim": "stagger"
+    },
+    {
+     "text": "анимациялары",
+     "role": "italic",
+     "size": 0.15,
+     "at": 10.96,
+     "color": "milk",
+     "anim": "script",
+     "rotate": -3
+    }
+   ]
+  },
+  {
+   "kind": "transition",
+   "id": "t1",
+   "start": 11.72,
+   "end": 12.02,
+   "style": "whip"
+  },
+  {
+   "kind": "poster",
+   "id": "p6",
+   "start": 12.1,
+   "end": 14.8,
+   "anchorY": 0.12,
+   "items": [
+    {
+     "text": "түсіндірмелі",
+     "role": "label",
+     "size": 0.04,
+     "at": 12.16,
+     "color": "milk",
+     "anim": "tracking"
+    },
+    {
+     "text": "графикалар",
+     "role": "italic",
+     "size": 0.1,
+     "at": 13.09,
+     "color": "milk",
+     "anim": "script"
+    }
+   ]
+  },
+  {
+   "kind": "diagram",
+   "id": "d1",
+   "start": 11.95,
+   "end": 14.8,
+   "y": 0.3,
+   "nodes": [
+    {
+     "icon": "video",
+     "at": 12.16
+    },
+    {
+     "icon": "star",
+     "at": 12.65
+    },
+    {
+     "icon": "phone",
+     "at": 13.09
+    }
+   ]
+  },
+  {
+   "kind": "poster",
+   "id": "p7",
+   "start": 14.88,
+   "end": 16.9,
+   "bg": "shade-top",
+   "anchorY": 0.16,
+   "items": [
+    {
+     "text": "видео және дыбыстық",
+     "role": "italic",
+     "size": 0.08,
+     "at": 14.9,
+     "color": "milk",
+     "anim": "word"
+    },
+    {
+     "text": "ЭФФЕКТІЛЕР",
+     "role": "sans",
+     "size": 0.15,
+     "at": 16.04,
+     "color": "pink",
+     "anim": "scale"
+    }
+   ]
+  },
+  {
+   "kind": "punch",
+   "id": "x1",
+   "start": 15.95,
+   "end": 16.45,
+   "mono": true
+  },
+  {
+   "kind": "poster",
+   "id": "p8",
+   "start": 17.2,
+   "end": 18.0,
+   "bg": "shade-top",
+   "anchorY": 0.15,
+   "items": [
+    {
+     "text": "кадрлар арасындағы",
+     "role": "italic",
+     "size": 0.085,
+     "at": 17.25,
+     "color": "milk",
+     "anim": "word"
+    }
+   ]
+  },
+  {
+   "kind": "transition",
+   "id": "t2",
+   "start": 17.95,
+   "end": 18.95,
+   "style": "type",
+   "text": "АУЫСУЛАР"
+  },
+  {
+   "kind": "poster",
+   "id": "p9",
+   "start": 18.45,
+   "end": 24.0,
+   "bg": "mono",
+   "anchorY": 0.635,
+   "items": [
+    {
+     "text": "осының барлығын",
+     "role": "label",
+     "size": 0.045,
+     "at": 18.95,
+     "color": "milk",
+     "anim": "word"
+    },
+    {
+     "text": "БІР СТИЛЬДЕ",
+     "role": "sans",
+     "size": 0.13,
+     "at": 21.44,
+     "color": "pink",
+     "anim": "stagger"
+    },
+    {
+     "text": "кәсіби",
+     "role": "italic",
+     "size": 0.14,
+     "at": 22.15,
+     "color": "milk",
+     "anim": "script",
+     "dx": -0.17,
+     "rotate": -4
+    },
+    {
+     "text": "МОНТАЖ",
+     "role": "sans",
+     "size": 0.2,
+     "at": 22.3,
+     "color": "pink",
+     "anim": "scale",
+     "underline": true
+    }
+   ]
+  },
+  {
+   "kind": "transition",
+   "id": "t3",
+   "start": 23.88,
+   "end": 24.12,
+   "style": "flash"
+  },
+  {
+   "kind": "poster",
+   "id": "p10",
+   "start": 25.6,
+   "end": 28.6,
+   "bg": "shade-bottom",
+   "anchorY": 0.66,
+   "items": [
+    {
+     "text": "үйренгің келсе",
+     "role": "label",
+     "size": 0.042,
+     "at": 25.7,
+     "color": "milk",
+     "anim": "word"
+    },
+    {
+     "text": "КОММЕНТАРИЙҒА",
+     "role": "sans",
+     "size": 0.11,
+     "at": 26.61,
+     "color": "pink",
+     "anim": "stagger"
+    },
+    {
+     "text": "CLAUDE",
+     "role": "italic",
+     "size": 0.24,
+     "at": 27.38,
+     "color": "milk",
+     "anim": "script"
+    },
+    {
+     "text": "сөзін жаз",
+     "role": "label",
+     "size": 0.04,
+     "at": 27.64,
+     "color": "milk",
+     "anim": "tracking"
+    }
+   ]
+  }
+ ],
+ "sfx": [
+  {
+   "t": 0.36,
+   "kind": "reveal",
+   "gain": 0.55,
+   "reason": "первая строка"
+  },
+  {
+   "t": 2.45,
+   "kind": "whoosh",
+   "gain": 0.8,
+   "reason": "БАРЛЫҚ"
+  },
+  {
+   "t": 2.84,
+   "kind": "impact",
+   "gain": 0.65,
+   "reason": "МҮМКІНДІГІН"
+  },
+  {
+   "t": 3.53,
+   "kind": "tonal",
+   "gain": 0.55,
+   "reason": "вопрос script"
+  },
+  {
+   "t": 4.86,
+   "kind": "swipe",
+   "gain": 0.75,
+   "reason": "смена фона"
+  },
+  {
+   "t": 5.9,
+   "kind": "sweep",
+   "gain": 0.7,
+   "reason": "отделение от фона"
+  },
+  {
+   "t": 8.12,
+   "kind": "trace",
+   "gain": 0.65,
+   "reason": "белый контур"
+  },
+  {
+   "t": 9.18,
+   "kind": "click",
+   "gain": 0.7,
+   "reason": "демо субтитров"
+  },
+  {
+   "t": 10.46,
+   "kind": "whoosh",
+   "gain": 0.8,
+   "reason": "МӘТІН"
+  },
+  {
+   "t": 10.96,
+   "kind": "impact",
+   "gain": 0.5,
+   "reason": "анимациялары"
+  },
+  {
+   "t": 11.72,
+   "kind": "swipe",
+   "gain": 0.7,
+   "reason": "whip в split screen"
+  },
+  {
+   "t": 12.16,
+   "kind": "click",
+   "gain": 0.65,
+   "reason": "узел 1"
+  },
+  {
+   "t": 12.65,
+   "kind": "click",
+   "gain": 0.65,
+   "reason": "узел 2"
+  },
+  {
+   "t": 13.09,
+   "kind": "pop",
+   "gain": 0.75,
+   "reason": "узел 3"
+  },
+  {
+   "t": 16.04,
+   "kind": "impact",
+   "gain": 0.7,
+   "reason": "эффект: наезд + ч/б + свет"
+  },
+  {
+   "t": 16.95,
+   "kind": "riser",
+   "gain": 0.55,
+   "reason": "подготовка"
+  },
+  {
+   "t": 17.98,
+   "kind": "whoosh",
+   "gain": 0.85,
+   "reason": "переход АУЫСУЛАР"
+  },
+  {
+   "t": 21.44,
+   "kind": "whoosh",
+   "gain": 0.7,
+   "reason": "сборка"
+  },
+  {
+   "t": 22.15,
+   "kind": "impact",
+   "gain": 0.75,
+   "reason": "КӘСІБИ МОНТАЖ"
+  },
+  {
+   "t": 23.88,
+   "kind": "soft",
+   "gain": 0.6,
+   "reason": "вспышка, возврат к цвету"
+  },
+  {
+   "t": 26.61,
+   "kind": "swipe",
+   "gain": 0.6,
+   "reason": "КОММЕНТАРИЙҒА"
+  },
+  {
+   "t": 27.38,
+   "kind": "tonal",
+   "gain": 0.6,
+   "reason": "CLAUDE"
+  },
+  {
+   "t": 27.7,
+   "kind": "pop",
+   "gain": 0.7,
+   "reason": "финальный акцент"
+  }
+ ],
+ "styleOverrides": {}
+}

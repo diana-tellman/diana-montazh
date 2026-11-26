@@ -97,11 +97,12 @@ export function buildStoryboard(inp: PlanInput, version = 1): Storyboard {
       return { text: st.uppercase ? e.text.toUpperCase() : e.text, start: w.startMs / 1000, end: w.endMs / 1000, emphasis: e.emphasis };
     }),
   );
+  const allWords = [...words];
   // Words shown as a big headline are not repeated in the captions.
   const norm = (x: string) => x.toLowerCase().replace(/ё/g, "е").replace(/[^\p{L}\p{N}]/gu, "");
   for (const b of o.authored?.beats ?? []) {
-    if ((b.kind !== "headline" && b.kind !== "poster") || !b.hideWords) continue;
-    const texts = b.kind === "headline" ? b.lines.map((l) => l.text) : b.items.map((i) => i.text);
+    if (b.kind !== "poster" || !b.hideWords) continue;
+    const texts = b.items.map((i) => i.text);
     const hw = new Set(texts.flatMap((x) => x.split(/\s+/)).map(norm));
     for (let i = words.length - 1; i >= 0; i--) {
       const w = words[i]!;
@@ -394,7 +395,7 @@ export function buildStoryboard(inp: PlanInput, version = 1): Storyboard {
 
   // ---------- SFX (sparse, under the voice) ----------
   const sfx: Sfx[] = [];
-  const beats: Beat[] = o.authored?.beats ?? [];
+  const beats: Beat[] = (o.authored?.beats ?? []).map((b) => (b.kind === "poster" ? { ...b, items: b.items.map((it) => (it.anim === "word" && !it.wordTimes ? { ...it, wordTimes: speechTimes(it.text, it.at, allWords) } : it)) } : b));
   if (o.sfx) {
     const add = (t: number, kind: Sfx["kind"], gain: number, reason: string) => {
       if (t < 0.15 || t > duration - 0.2 || sfx.some((s) => Math.abs(s.t - t) < 1.0)) return;
@@ -479,4 +480,21 @@ export function buildStoryboard(inp: PlanInput, version = 1): Storyboard {
     visuals, camera, captions: o.authored?.captionWindows ? captions.filter((c) => o.authored!.captionWindows!.some(([a, b]) => c.start < b && c.end > a)) : captions, behindText, callouts: [], layouts, beats, icons, sfx: [...sfx].sort((a, b) => a.t - b.t), progressBar: o.progressBar, scenes, checks,
     transcriptNote: transcript.notes.join(" "),
   };
+}
+
+/** Times when each word of `text` is spoken (searching from `at` - 0.6 s); unmatched words are spaced 0.14 s. */
+export function speechTimes(text: string, at: number, words: Array<{ text: string; start: number }>): number[] {
+  const norm = (x: string) => x.toLowerCase().replace(/ё/g, "е").replace(/[^\p{L}\p{N}]/gu, "");
+  const out: number[] = [];
+  let k = words.findIndex((w) => w.start >= at - 0.6);
+  if (k < 0) k = words.length;
+  for (const [i, tw] of text.split(/\s+/).entries()) {
+    let found = -1;
+    for (let j = k; j < Math.min(words.length, k + 6); j++) if (norm(words[j]!.text) === norm(tw)) { found = j; break; }
+    if (found >= 0) {
+      out.push(Math.max(at, words[found]!.start - 0.05));
+      k = found + 1;
+    } else out.push((out.at(-1) ?? at - 0.14) + 0.14 + (i === 0 ? 0.14 : 0) - (i === 0 ? 0.14 : 0));
+  }
+  return out;
 }

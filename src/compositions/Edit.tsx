@@ -7,6 +7,7 @@ import { contrastRatio, resolveStyle, type StyleDef } from "../design/styles";
 import { easeInOut } from "../layout/frame";
 import { personBox, personRadius, personWindow, secondaryBox, type LayoutKind } from "../layout/person";
 import { BeatLayer, beatOrder, isTransition, TextureBg } from "./beats";
+import { enterStyle, exitStyle, progress, unitStyle } from "../motion/anim";
 import { ICONS } from "../design/icons";
 import { captionBand, safeZone } from "../layout/safeZones";
 import { cameraAt, layoutAt, StoryboardSchema, type BehindText, type Callout, type Caption, type Icon, type Layout, type Storyboard, type Visual } from "../storyboard/schema";
@@ -220,69 +221,79 @@ const CaptionBlock: React.FC<{ c: Caption; sb: Storyboard; st: StyleDef }> = ({ 
   const col = sb.style.colors;
   const band = captionBand(safeZone(sb.platform));
   const px = st.size * Math.min(sb.width, sb.height) * c.scale;
-  const dur = (c.end - c.start) * fps;
-  const inP = spring({ frame, fps, config: { damping: 15, stiffness: 170 } });
-  const outP = interpolate(frame, [dur - 5, dur], [1, 0], { extrapolateLeft: "clamp", extrapolateRight: "clamp" });
   const words = c.lines.flat();
-  // Active word = the last word that has started (stays active through short pauses).
   const activeIdx = words.reduce((acc, w, i) => (t >= w.start ? i : acc), -1);
+  const perWord = st.enter === "word" || st.enter === "typewriter";
+  // Block entrance / exit from the shared motion library (no bounce).
+  const inP = progress(t, c.start, st.enter === "blur" ? 0.45 : 0.34);
+  const e = interpolate(t, [c.end - 0.2, c.end], [0, 1], { extrapolateLeft: "clamp", extrapolateRight: "clamp" });
+  const enterKind = perWord ? null : st.enter === "pop" ? "scale" : st.enter === "rise" ? "fade" : st.enter === "slide" ? "slideRight" : st.enter;
+  const en = enterKind ? enterStyle(enterKind as never, inP, px) : { masked: false, inner: {}, outer: {} };
+  const exitS = exitStyle((st.exit ?? "fade") as never, e, px);
 
-  const blockAnim =
-    st.enter === "pop" ? { transform: `scale(${0.86 + 0.14 * inP})`, opacity: outP * Math.min(1, inP * 1.5) }
-    : st.enter === "rise" ? { transform: `translateY(${(1 - inP) * 26}px)`, opacity: outP * inP }
-    : st.enter === "slide" ? { transform: `translateX(${(1 - inP) * -60}px) rotate(-2deg)`, opacity: outP }
-    : { opacity: outP * interpolate(frame, [0, 6], [0, 1], { extrapolateRight: "clamp" }) };
-
-  const textDeco: React.CSSProperties =
-    // No outline: a tight dark shadow + a soft halo keeps white text readable on any background.
-    st.backdrop === "shadow" ? { textShadow: "0 1px 2px rgba(0,0,0,0.75), 0 2px 8px rgba(0,0,0,0.6), 0 0 22px rgba(0,0,0,0.4)" }
-    : {};
+  const textDeco: React.CSSProperties = st.backdrop === "shadow" ? { textShadow: "0 1px 2px rgba(0,0,0,0.75), 0 2px 8px rgba(0,0,0,0.55), 0 0 22px rgba(0,0,0,0.35)" } : {};
+  const plate = st.plate ?? (st.backdrop === "glass" ? "glass" : sb.style.preset === "lime" ? "solid" : "none");
   const container: React.CSSProperties =
-    st.backdrop === "glass" ? { background: "rgba(16,18,24,0.55)", border: "1.5px solid rgba(255,255,255,0.28)", boxShadow: "inset 0 1px 0 rgba(255,255,255,0.35), 0 12px 40px rgba(0,0,0,0.35)", borderRadius: px * 0.45, padding: `${px * 0.22}px ${px * 0.42}px` }
-    : sb.style.preset === "lime" ? { background: col.accent, borderRadius: px * 0.18, padding: `${px * 0.16}px ${px * 0.32}px`, boxShadow: "0 10px 0 rgba(0,0,0,0.85)" }
+    plate === "glass" ? { background: "rgba(20,20,22,0.55)", border: "1.5px solid rgba(255,255,255,0.25)", boxShadow: "inset 0 1px 0 rgba(255,255,255,0.3), 0 12px 40px rgba(0,0,0,0.35)", borderRadius: px * 0.45, padding: `${px * 0.22}px ${px * 0.45}px` }
+    : plate === "solid" ? { background: col.accent, borderRadius: px * 0.18, padding: `${px * 0.16}px ${px * 0.32}px` }
+    : plate === "box" ? { border: `2px solid ${col.text}`, borderRadius: px * 0.12, padding: `${px * 0.18}px ${px * 0.4}px` }
     : {};
-
-  // Coloured words are only reliable on a dark glass plate; over video use a marker bar.
-  const accentAsText = st.backdrop === "glass" && /^#[0-9a-f]{6}$/i.test(col.accent) && contrastRatio(col.accent, "#000000") >= 4.5;
+  const accentAsText = plate === "glass" && /^#[0-9a-f]{6}$/i.test(col.accent) && contrastRatio(col.accent, "#000000") >= 4.5;
   let wi = -1;
-  return (
-    <div style={{ position: "absolute", left: band.x0 * sb.width, width: (band.x1 - band.x0) * sb.width, top: c.y * sb.height, display: "flex", justifyContent: "center" }}>
-      <div style={{ ...container, ...blockAnim, transformOrigin: "center center", display: "flex", flexDirection: "column", alignItems: "center" }}>
-        {c.lines.map((line, li) => (
-          <FitLine key={li} maxWidth={(band.x1 - band.x0) * sb.width - px * 0.8} frame={frame}>
-            {line.map((w, k) => {
-              wi++;
-              const i = wi;
-              const spoken = i <= activeIdx;
-              const active = i === activeIdx;
-              const wf = Math.max(0, Math.round((t - w.start) * fps));
-              const pop = spring({ frame: wf, fps, config: { damping: 13, stiffness: 220 } });
-              const hidden = st.upcoming === "hidden" && !spoken;
-              let color = st.upcoming === "dim" && !spoken ? col.upcoming : col.text;
-              const marker = w.emphasis && !accentAsText && !(active && st.active === "pill") && sb.style.preset !== "lime";
-              if (w.emphasis && !(active && st.active === "pill") && accentAsText) color = sb.style.preset === "lime" ? col.text : col.accent;
-              if (active && st.active === "color") color = col.accent;
-              const pill = active && st.active === "pill";
-              const scale = (w.emphasis ? st.emphasisScale : 1) * (active && st.active === "scale" ? 1.1 : 1) * (st.upcoming === "hidden" ? 0.7 + 0.3 * pop : 1);
-              return (
+  const block = (
+    <div style={{ ...container, display: "flex", flexDirection: "column", alignItems: "center" }}>
+      {c.lines.map((line, li) => (
+        <FitLine key={li} maxWidth={(band.x1 - band.x0) * sb.width - px * 1.6} frame={frame}>
+          {line.map((w, k) => {
+            wi++;
+            const i = wi;
+            const spoken = i <= activeIdx;
+            const active = i === activeIdx;
+            const hidden = st.upcoming === "hidden" && !spoken && !perWord;
+            let color = st.upcoming === "dim" && !spoken ? col.upcoming : col.text;
+            const pill = active && st.active === "pill";
+            const marker = w.emphasis && !accentAsText && !pill && plate !== "solid";
+            if (w.emphasis && !pill && accentAsText) color = col.accent;
+            if (active && st.active === "color") color = col.accent;
+            const unit = perWord ? unitStyle(st.enter === "typewriter" ? "typewriter" : "word", t, w.start - 0.04, px) : {};
+            const ul = active && st.active === "underline";
+            return (
+              <span key={k} style={{ display: "inline-block", overflow: perWord && st.enter === "word" ? "hidden" : "visible", verticalAlign: "top", margin: `0 ${px * 0.12}px`, paddingBottom: px * 0.06 }}>
                 <span
-                  key={k}
                   style={{
                     fontFamily: FONT_FAMILIES[st.font], fontWeight: st.weight, fontSize: px, lineHeight: st.lineHeight,
                     letterSpacing: `${st.letterSpacing}em`, color: pill ? col.onAccent : color,
-                    margin: `0 ${px * 0.12}px`, padding: pill ? `${px * 0.04}px ${px * 0.2}px` : `${px * 0.04}px 0`,
-                    borderRadius: px * 0.22,
+                    padding: pill ? `${px * 0.04}px ${px * 0.2}px` : `${px * 0.04}px 0`, borderRadius: px * 0.22,
                     background: pill ? col.accent : marker ? `linear-gradient(transparent 58%, ${col.accent} 58%, ${col.accent} 92%, transparent 92%)` : "transparent",
-                    opacity: hidden ? 0 : 1, display: "inline-block", transform: `scale(${scale}) translateY(${st.enter === "rise" && !hidden ? (1 - pop) * 10 : 0}px)`,
+                    opacity: hidden ? 0 : 1, display: "inline-block",
+                    transform: `scale(${(w.emphasis ? st.emphasisScale : 1) * (active && st.active === "scale" ? 1.08 : 1)})`,
+                    boxShadow: ul ? `inset 0 -${Math.max(4, px * 0.07)}px 0 ${col.accent}` : undefined,
+                    ...unit,
                     ...(pill ? {} : textDeco),
                   }}
                 >
                   {w.text}
                 </span>
-              );
-            })}
-          </FitLine>
-        ))}
+              </span>
+            );
+          })}
+        </FitLine>
+      ))}
+    </div>
+  );
+  return (
+    <div style={{ position: "absolute", left: band.x0 * sb.width, width: (band.x1 - band.x0) * sb.width, top: c.y * sb.height, display: "flex", justifyContent: "center" }}>
+      <div style={exitS}>
+        <div style={{ overflow: en.masked ? "hidden" : "visible" }}>
+          <div style={{ ...en.inner, display: "flex", alignItems: "center", gap: px * 0.2 }}>
+            {plate === "bracket" ? <span style={{ fontFamily: FONT_FAMILIES.intertight, fontWeight: 300, fontSize: px * 1.45, color: col.text, lineHeight: 1, ...textDeco }}>[</span> : null}
+            <div style={{ display: "flex", flexDirection: "column", alignItems: "center" }}>
+              {block}
+              {plate === "underline" ? <div style={{ height: Math.max(4, px * 0.06), width: `${progress(t, c.start + 0.15, 0.4) * 100}%`, background: col.accent, borderRadius: 3, marginTop: px * 0.1 }} /> : null}
+            </div>
+            {plate === "bracket" ? <span style={{ fontFamily: FONT_FAMILIES.intertight, fontWeight: 300, fontSize: px * 1.45, color: col.text, lineHeight: 1, ...textDeco }}>]</span> : null}
+          </div>
+        </div>
       </div>
     </div>
   );

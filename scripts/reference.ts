@@ -1,5 +1,5 @@
 /**
- * npm run reference -- <id> <reference-video>
+ * npm run reference -- <id> <reference-video | images…>
  *
  * Measures what can be measured in a reference video and prepares what Claude must SEE:
  *  - colour grade → 3D LUT (.cube) matching the reference look, applied to the user's video at plan time;
@@ -49,59 +49,72 @@ const REFERENCE_TEMPLATE = {
   notes: "",
 };
 
+const IMG = /\.(jpe?g|png|webp|heic|heif)$/i;
+
 main(async () => {
   const { pos } = parseArgs();
-  const [id, refFile] = pos;
-  if (!id || !refFile || !existsSync(refFile)) throw new Error("npm run reference -- <id> <reference-video>");
+  const [id, ...refs] = pos;
+  if (!id || !refs.length || refs.some((f) => !existsSync(f))) throw new Error("npm run reference -- <id> <образец.mp4 | картинки…>");
   const project = loadProject(id);
   const p = pathsFor(id);
   const dir = join(p.work, "reference");
   mkdirSync(dir, { recursive: true });
-  const ref = join(p.input, "reference" + extname(refFile).toLowerCase());
-  copyFileSync(refFile, ref);
-  const info = await probe(ref);
-  if (info.kind !== "video") throw new Error("Референс должен быть видео.");
   const log = (s: string) => console.error(s);
 
-  // Frames sheet for Claude's eyes: dense at the start (hook), then spread.
-  const d = info.durationSec;
-  const times = [0.3, 0.8, 1.3, 1.8, 2.5, 3.5, d * 0.3, d * 0.45, d * 0.6, d * 0.75, d * 0.9, Math.max(0, d - 0.4)].filter((t) => t < d).slice(0, 12);
-  const tiles: string[] = [];
-  for (const [i, t] of times.entries()) {
-    const f = join(dir, `f${i}.jpg`);
-    await run("ffmpeg", ["-v", "error", "-y", "-ss", t.toFixed(2), "-i", ref, "-frames:v", "1", "-vf", "scale=360:-2", f]);
-    tiles.push(f);
+  // Several references are allowed: videos (motion, colour, pacing) and images (typography, layout, palette).
+  const tiles: Array<{ file: string; label: string }> = [];
+  let video: string | null = null;
+  let info: Awaited<ReturnType<typeof probe>> | null = null;
+  for (const [n, refFile] of refs.entries()) {
+    const ref = join(p.input, `reference-${n + 1}${extname(refFile).toLowerCase()}`);
+    copyFileSync(refFile, ref);
+    if (IMG.test(refFile)) {
+      const f = join(dir, `img${n}.jpg`);
+      await sharp(ref).rotate().resize({ width: 360, height: 640, fit: "contain", background: "#141414" }).jpeg({ quality: 88 }).toFile(f);
+      tiles.push({ file: f, label: `картинка ${n + 1}` });
+      continue;
+    }
+    const inf = await probe(ref);
+    if (inf.kind !== "video") throw new Error(`${refFile}: не видео и не картинка.`);
+    if (!video) (video = ref), (info = inf);
+    const d = inf.durationSec;
+    const times = [0.3, 0.8, 1.3, 1.8, 2.5, 3.5, d * 0.3, d * 0.45, d * 0.6, d * 0.75, d * 0.9, Math.max(0, d - 0.4)].filter((t) => t < d).slice(0, 12);
+    for (const [i, t] of times.entries()) {
+      const f = join(dir, `v${n}f${i}.jpg`);
+      await run("ffmpeg", ["-v", "error", "-y", "-ss", t.toFixed(2), "-i", ref, "-frames:v", "1", "-vf", "scale=360:640:force_original_aspect_ratio=decrease,pad=360:640:(ow-iw)/2:(oh-ih)/2:color=0x141414", f]);
+      tiles.push({ file: f, label: `видео ${n + 1} · ${t.toFixed(1)} с` });
+    }
   }
-  const m = await sharp(tiles[0]!).metadata();
-  const tw = m.width!;
-  const th = m.height!;
+  const tw = 360;
+  const th = 640;
   const cols = 4;
   const rows = Math.ceil(tiles.length / cols);
-  const comps = tiles.flatMap((f, i) => {
+  const comps = tiles.flatMap((tile, i) => {
     const x = 8 + (i % cols) * (tw + 8);
     const y = 8 + Math.floor(i / cols) * (th + 44);
-    const svg = `<svg width="${tw}" height="36" xmlns="http://www.w3.org/2000/svg"><text x="4" y="27" font-family="Inter" font-size="24" font-weight="700" fill="#fff">${times[i]!.toFixed(1)} с</text></svg>`;
-    return [{ input: f, left: x, top: y }, { input: Buffer.from(svg), left: x, top: y + th + 2 }];
+    const svg = `<svg width="${tw}" height="36" xmlns="http://www.w3.org/2000/svg"><text x="4" y="27" font-family="Inter" font-size="24" font-weight="700" fill="#fff">${tile.label}</text></svg>`;
+    return [{ input: tile.file, left: x, top: y }, { input: Buffer.from(svg), left: x, top: y + th + 2 }];
   });
   const sheet = join(dir, "frames.jpg");
   await sharp({ create: { width: cols * (tw + 8) + 8, height: rows * (th + 44) + 8, channels: 3, background: "#141414" } }).composite(comps).jpeg({ quality: 88 }).toFile(sheet);
 
-  // Measurements.
-  const cuts = await runAnalysis<{ cutsPerSec: number; cuts: number[] }>(["cuts", ref], log);
-  const energy = cuts.cutsPerSec > 0.35 ? 2 : cuts.cutsPerSec < 0.12 ? 0 : 1;
-  let grade: unknown = null;
-  const mainVideo = project.assets.find((a) => a.role === "main-video");
-  if (mainVideo) {
-    grade = await runAnalysis(["grade", ref, join(p.root, mainVideo.prepared), join(dir, "grade.cube"), "--strength", "0.85"], log);
+  // Measurements (only from a video reference).
+  let analysis: Record<string, unknown> = { images: refs.filter((f) => IMG.test(f)).length };
+  if (video && info) {
+    const cuts = await runAnalysis<{ cutsPerSec: number; cuts: number[] }>(["cuts", video], log);
+    const energy = cuts.cutsPerSec > 0.35 ? 2 : cuts.cutsPerSec < 0.12 ? 0 : 1;
+    let grade: unknown = null;
+    const mainVideo = project.assets.find((a) => a.role === "main-video");
+    if (mainVideo) grade = await runAnalysis(["grade", video, join(p.root, mainVideo.prepared), join(dir, "grade.cube"), "--strength", "0.85"], log);
+    const level = info.audio ? await measureLevels(video) : null;
+    analysis = { ...analysis, reference: video, durationSec: info.durationSec, cutsPerSec: cuts.cutsPerSec, suggestedEnergy: energy, grade, loudnessLufs: level?.integratedLufs ?? null };
   }
-  const level = info.audio ? await measureLevels(ref) : null;
-  const analysis = { reference: ref, durationSec: d, size: `${info.video?.width}×${info.video?.height}`, cutsPerSec: cuts.cutsPerSec, suggestedEnergy: energy, grade, loudnessLufs: level?.integratedLufs ?? null };
   writeFileSync(join(dir, "analysis.json"), JSON.stringify(analysis, null, 2));
 
   const styleFile = join(p.storyboard, "reference-style.json");
-  if (!existsSync(styleFile)) writeFileSync(styleFile, JSON.stringify({ ...REFERENCE_TEMPLATE, source: refFile.split("/").pop() }, null, 2));
+  if (!existsSync(styleFile)) writeFileSync(styleFile, JSON.stringify({ ...REFERENCE_TEMPLATE, source: refs.map((f) => f.split("/").pop()).join(", ") }, null, 2));
   out({
     id, frames: sheet, styleFile, measured: analysis,
-    next: "Посмотри frames.jpg, заполни reference-style.json, затем: npm run plan -- <id> --reference [явные пожелания пользователя как флаги]",
+    next: "Посмотри frames.jpg. Для схемы субтитров — заполни reference-style.json и plan --reference; для типографики/постеров — перенеси приёмы в beats.json (skill editorial-motion).",
   });
 });

@@ -18,7 +18,7 @@ export async function withMattes(sb: Storyboard, log: (s: string) => void = () =
   for (const b of sb.behindText) needs.push({ start: b.start, end: b.end, outline: false });
   for (const b of sb.beats) {
     if (b.kind === "cutout") needs.push({ start: b.start, end: b.end, outline: !!b.outline });
-    if ((b.kind === "headline" || b.kind === "poster") && b.behind) needs.push({ start: b.start, end: b.end, outline: false });
+    if (b.kind === "poster" && b.behind) needs.push({ start: b.start, end: b.end, outline: false });
   }
   needs.sort((a, b) => a.start - b.start);
   const merged: Need[] = [];
@@ -49,7 +49,7 @@ export async function withMattes(sb: Storyboard, log: (s: string) => void = () =
     ...sb,
     behindText: sb.behindText.map((b) => { const m = find(b.start, b.end); return { ...b, matteDir: m?.dir ?? null, matteStart: m?.start ?? b.start }; }),
     beats: sb.beats.map((b): Beat => {
-      if (b.kind !== "cutout" && !((b.kind === "headline" || b.kind === "poster") && b.behind)) return b;
+      if (b.kind !== "cutout" && !(b.kind === "poster" && b.behind)) return b;
       const m = find(b.start, b.end);
       return { ...b, matteDir: m?.dir ?? null, matteStart: m?.start ?? 0 };
     }),

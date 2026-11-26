@@ -5,6 +5,7 @@
  *   [--layout auto|full|circle|split] [--no-icons]
  *   [--reference] [--no-reference] [--font modern-sans|neutral-sans|geometric-bold|serif|condensed|rounded|rounded-bold|elegant]
  *   [--size small|medium|large] [--upper|--lower]
+ *   [--sfx-theme cinematic|soft|glass|studio|minimal|dreamy|organic|mechanical|scifi|zen|rubber|arcade]
  *   [--beats]  use storyboard/beats.json authored by Claude: {beats, camera, layouts, sfx, voiceSrc, gradeFilter}
  *
  * Builds the edit plan (storyboard.json) from the transcript, face analysis and options.
@@ -14,7 +15,7 @@ import { existsSync, readFileSync, writeFileSync } from "node:fs";
 import { join } from "node:path";
 import { promisify } from "node:util";
 import { execFile } from "node:child_process";
-import { ensureSfx } from "../src/audio/sfx";
+import { ensureSfx, SFX_THEMES, type SfxTheme } from "../src/audio/sfx";
 import { FORMATS, type FormatId } from "../src/formats";
 import { chooseFraming } from "../src/layout/frame";
 import { defaultPlatform, type Platform } from "../src/layout/safeZones";
@@ -90,7 +91,9 @@ main(async () => {
     if (!existsSync(join(p.root, rel))) await run("ffmpeg", blurFillArgs(join(p.root, a.prepared), join(p.root, rel), fmt.width, fmt.height));
     fills[a.id] = rel;
   }
-  await ensureSfx(p.root);
+  const sfxTheme = (str(opt["sfx-theme"]) ?? (opt.beats ? (JSON.parse(readFileSync(join(p.storyboard, "beats.json"), "utf8")) as { sfxTheme?: string }).sfxTheme : undefined) ?? "cinematic") as SfxTheme;
+  if (!SFX_THEMES.includes(sfxTheme)) throw new Error(`Неизвестная тема звуков ${sfxTheme}. Есть: ${SFX_THEMES.join(", ")}`);
+  await ensureSfx(p.root, sfxTheme);
 
   // Colour grade from the reference, baked into a graded proxy by ffmpeg.
   const graded: Record<string, string> = {};

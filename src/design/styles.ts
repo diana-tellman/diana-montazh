@@ -4,7 +4,7 @@ import { FONT_FAMILIES, type FontId } from "./fontNames";
 /** Brand palette (default). User colours override it via the storyboard `style.colors`. */
 export const BRAND = { graphite: "#141414", burgundy: "#6B1732", softWhite: "#F7F5F2", white: "#FFFFFF" } as const;
 
-export const StylePresetSchema = z.enum(["brand", "minimal", "kinetic", "glass", "lime"]);
+export const StylePresetSchema = z.enum(["brand", "minimal", "kinetic", "glass", "lime", "editorial", "bracket", "boxed", "karaoke", "typewriter"]);
 export type StylePreset = z.infer<typeof StylePresetSchema>;
 
 export const ColorsSchema = z.object({
@@ -31,13 +31,17 @@ export type StyleDef = {
   letterSpacing: number;
   colors: Colors;
   /** How the active (being spoken) word is shown. */
-  active: "pill" | "color" | "scale" | "underline";
+  active: "pill" | "color" | "scale" | "underline" | "none";
   /** Words not yet spoken: hidden (karaoke reveal) or dimmed. */
   upcoming: "dim" | "hidden" | "visible";
   /** Readability treatment behind text. */
   backdrop: "shadow" | "glass" | "none";
-  /** Entrance of a caption block. */
-  enter: "pop" | "rise" | "fade" | "slide";
+  /** Entrance: whole block (pop/rise/fade/slide/blur/mask) or per spoken word (word/typewriter). */
+  enter: "pop" | "rise" | "fade" | "slide" | "blur" | "mask" | "word" | "typewriter";
+  /** Exit of a caption block. */
+  exit?: "fade" | "blur" | "up" | "down" | "none";
+  /** Plate behind the caption block (not around letters — no outlines on text). */
+  plate?: "none" | "glass" | "solid" | "bracket" | "underline" | "box";
   maxWordsPerPhrase: number;
   maxCharsPerLine: number;
   emphasisScale: number;
@@ -71,6 +75,41 @@ export const STYLES: Record<StylePreset, StyleDef> = {
     font: "onest", weight: 700, uppercase: false, size: 0.045, lineHeight: 1.1, letterSpacing: -0.01,
     colors: { text: BRAND.white, accent: "#7FD3FF", onAccent: "#0B1A24", upcoming: "rgba(255,255,255,0)" },
     active: "color", upcoming: "hidden", backdrop: "glass", enter: "rise", maxWordsPerPhrase: 4, maxCharsPerLine: 20, emphasisScale: 1.06,
+  },
+  editorial: {
+    label: "Editorial",
+    description: "Inter Tight, слова выезжают из маски в ритме речи, активное слово — розовым, выход с размытием.",
+    font: "intertight", weight: 800, uppercase: false, size: 0.056, lineHeight: 1.0, letterSpacing: -0.03,
+    colors: { text: "#F7F5F2", accent: "#F2D5E4", onAccent: "#191919", upcoming: "rgba(247,245,242,0)" },
+    active: "color", upcoming: "hidden", backdrop: "shadow", enter: "word", exit: "blur", plate: "none", maxWordsPerPhrase: 3, maxCharsPerLine: 16, emphasisScale: 1.0,
+  },
+  bracket: {
+    label: "Bracket",
+    description: "Фраза в квадратных скобках [ … ], спокойная, как в редакционных постерах.",
+    font: "intertight", weight: 600, uppercase: false, size: 0.05, lineHeight: 1.05, letterSpacing: -0.02,
+    colors: { text: "#F7F5F2", accent: "#F2D5E4", onAccent: "#191919", upcoming: "#F7F5F2" },
+    active: "none", upcoming: "visible", backdrop: "shadow", enter: "blur", exit: "fade", plate: "bracket", maxWordsPerPhrase: 4, maxCharsPerLine: 18, emphasisScale: 1.0,
+  },
+  boxed: {
+    label: "Boxed",
+    description: "Тонкая рамка вокруг блока, текст белый, активное слово подчёркнуто.",
+    font: "intertight", weight: 700, uppercase: false, size: 0.05, lineHeight: 1.05, letterSpacing: -0.02,
+    colors: { text: "#F7F5F2", accent: "#F2D5E4", onAccent: "#191919", upcoming: "rgba(247,245,242,0.55)" },
+    active: "underline", upcoming: "dim", backdrop: "shadow", enter: "mask", exit: "up", plate: "box", maxWordsPerPhrase: 4, maxCharsPerLine: 18, emphasisScale: 1.0,
+  },
+  karaoke: {
+    label: "Karaoke",
+    description: "Вся фраза видна приглушённо, произносимое слово загорается цветом.",
+    font: "onest", weight: 800, uppercase: false, size: 0.054, lineHeight: 1.05, letterSpacing: -0.01,
+    colors: { text: "#FFFFFF", accent: "#F2D5E4", onAccent: "#191919", upcoming: "rgba(255,255,255,0.45)" },
+    active: "color", upcoming: "dim", backdrop: "shadow", enter: "fade", exit: "fade", plate: "none", maxWordsPerPhrase: 5, maxCharsPerLine: 20, emphasisScale: 1.0,
+  },
+  typewriter: {
+    label: "Typewriter",
+    description: "Слова печатаются в момент произнесения на тёмной стеклянной плашке.",
+    font: "intertight", weight: 600, uppercase: false, size: 0.048, lineHeight: 1.1, letterSpacing: -0.01,
+    colors: { text: "#F7F5F2", accent: "#F2D5E4", onAccent: "#191919", upcoming: "rgba(247,245,242,0)" },
+    active: "none", upcoming: "hidden", backdrop: "glass", enter: "typewriter", exit: "fade", plate: "glass", maxWordsPerPhrase: 5, maxCharsPerLine: 20, emphasisScale: 1.0,
   },
   lime: {
     label: "Lime",
@@ -126,10 +165,12 @@ export const StyleOverridesSchema = z
     size: z.number().min(0.03).max(0.08),
     lineHeight: z.number().min(0.9).max(1.4),
     letterSpacing: z.number().min(-0.05).max(0.15),
-    active: z.enum(["pill", "color", "scale", "underline"]),
+    active: z.enum(["pill", "color", "scale", "underline", "none"]),
     upcoming: z.enum(["dim", "hidden", "visible"]),
     backdrop: z.enum(["shadow", "glass", "none"]),
-    enter: z.enum(["pop", "rise", "fade", "slide"]),
+    enter: z.enum(["pop", "rise", "fade", "slide", "blur", "mask", "word", "typewriter"]),
+    exit: z.enum(["fade", "blur", "up", "down", "none"]),
+    plate: z.enum(["none", "glass", "solid", "bracket", "underline", "box"]),
     maxWordsPerPhrase: z.number().int().min(1).max(8),
     maxCharsPerLine: z.number().int().min(8).max(32),
     emphasisScale: z.number().min(1).max(1.3),

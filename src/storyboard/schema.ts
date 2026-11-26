@@ -113,6 +113,10 @@ const MatteRef = { matteDir: z.string().nullable().default(null), matteStart: z.
  * - punch: light sweep overlay synced with a camera punch (visual + sound effect demo).
  * - shapeWipe: brand shape transition between compositions.
  */
+const ANIM = z.enum(["mask", "stagger", "word", "script", "fade", "blur", "scale", "tracking", "slideLeft", "slideRight", "typewriter"]);
+const EXIT = z.enum(["up", "down", "fade", "blur", "left", "right", "none"]);
+const COLOR = z.enum(["milk", "pink", "burgundy", "graphite", "accent", "text"]);
+
 export const BeatSchema = z.discriminatedUnion("kind", [
   z.object({
     kind: z.literal("cutout"), id: z.string(), start: T, end: T,
@@ -122,57 +126,73 @@ export const BeatSchema = z.discriminatedUnion("kind", [
     outline: z.tuple([T, T]).nullable().default(null),
     ...MatteRef,
   }),
-  z.object({
-    kind: z.literal("headline"), id: z.string(), start: T, end: T,
-    lines: z.array(z.object({ text: z.string(), accent: z.boolean().default(false), at: T.optional() })).min(1),
-    y: z.number(), size: z.number(), behind: z.boolean().default(false),
-    underline: z.boolean().default(false), sweep: z.boolean().default(false), hideWords: z.boolean().default(true),
-    icon: z.string().nullable().default(null),
-    ...MatteRef,
-  }),
-  z.object({
-    kind: z.literal("diagram"), id: z.string(), start: T, end: T,
-    nodes: z.array(z.object({ icon: z.string(), at: T })).min(2), y: z.number(),
-  }),
-  z.object({ kind: z.literal("punch"), id: z.string(), start: T, end: T, mono: z.boolean().default(false), monoSrc: z.string().nullable().default(null) }),
   /**
-   * Editorial typographic poster: layered lines in three roles (bold sans / elegant serif italic /
-   * script), each with its own reveal time; the whole composition exits cleanly at `end`.
+   * Editorial typographic poster. Lines in three roles (bold sans / elegant serif / italic / script).
+   * Items without `y` are laid out automatically by the stack engine (measured in the browser):
+   * consistent leading, script/italic accents overlap the line above, everything fits the safe width.
    */
   z.object({
     kind: z.literal("poster"), id: z.string(), start: T, end: T,
-    bg: z.enum(["none", "shade-top", "shade-bottom", "mono", "texture"]).default("none"),
+    bg: z.enum(["none", "shade-top", "shade-bottom", "mono", "texture", "blur-dim"]).default("none"),
     behind: z.boolean().default(false),
     hideWords: z.boolean().default(true),
     monoSrc: z.string().nullable().default(null),
+    /** Stack layout: vertical anchor (centre of the block), alignment, max width (fraction of W). */
+    anchorY: z.number().default(0.2),
+    align: z.enum(["center", "left", "right"]).default("center"),
+    maxWidth: z.number().default(0.74),
+    exit: EXIT.default("up"),
+    /** Slow drift while the poster holds (subtle scale). */
+    drift: z.boolean().default(true),
     items: z.array(z.object({
       text: z.string(),
-      role: z.enum(["sans", "serif", "italic", "script"]),
+      role: z.enum(["sans", "serif", "italic", "script", "label"]),
       size: z.number(),
-      y: z.number(),
-      x: z.number().default(0.5),
-      color: z.enum(["milk", "pink", "burgundy", "graphite"]).default("milk"),
+      /** Absolute vertical centre (fraction of H). Omit to use the stack engine. */
+      y: z.number().optional(),
+      x: z.number().optional(),
+      /** Extra horizontal offset inside the stack (fraction of W). */
+      dx: z.number().default(0),
+      color: COLOR.default("milk"),
       at: T,
-      anim: z.enum(["mask", "stagger", "script", "fade", "scale"]).default("mask"),
-      tracking: z.number().default(0),
+      anim: ANIM.default("mask"),
+      tracking: z.number().optional(),
       rotate: z.number().default(0),
-      /** Editorial slide: at `move.at` the item glides by dy (fraction of height) and scales. */
       move: z.object({ at: T, dy: z.number(), scale: z.number().default(1) }).nullable().default(null),
       until: T.nullable().default(null),
-      /** With a behind-the-person poster: draw this item in front of the person. */
       front: z.boolean().default(false),
+      /** Per-word reveal times (filled from the transcript for anim "word"). */
+      wordTimes: z.array(T).optional(),
+      /** Underline drawn under this item after it appears. */
+      underline: z.boolean().default(false),
     })).min(1),
     ...MatteRef,
   }),
-  /** Typographic transition: a milk panel carrying a giant word sweeps across and reveals the next composition. */
-  z.object({ kind: z.literal("typeWipe"), id: z.string(), start: T, end: T, text: z.string() }),
-  z.object({ kind: z.literal("shapeWipe"), id: z.string(), start: T, end: T }),
+  /** Plates: glass, solid, outline, bracket, tag, lower third, big number, CTA button, quote. */
+  z.object({
+    kind: z.literal("plate"), id: z.string(), start: T, end: T,
+    variant: z.enum(["glass", "solid", "outline", "bracket", "tag", "lowerThird", "number", "cta", "quote"]),
+    text: z.string(), sub: z.string().nullable().default(null),
+    x: z.number().default(0.5), y: z.number(), align: z.enum(["center", "left", "right"]).default("center"),
+    size: z.number().default(0.05), icon: z.string().nullable().default(null),
+    anim: ANIM.default("blur"), exit: EXIT.default("fade"),
+  }),
+  z.object({
+    kind: z.literal("diagram"), id: z.string(), start: T, end: T,
+    nodes: z.array(z.object({ icon: z.string(), at: T, label: z.string().optional() })).min(2), y: z.number(),
+  }),
+  z.object({ kind: z.literal("punch"), id: z.string(), start: T, end: T, mono: z.boolean().default(false), monoSrc: z.string().nullable().default(null) }),
+  /** Transitions: brand shape, typographic panel, white flash, whip streak, zoom blur. Drawn above everything. */
+  z.object({
+    kind: z.literal("transition"), id: z.string(), start: T, end: T,
+    style: z.enum(["shape", "type", "flash", "whip", "zoom"]), text: z.string().nullable().default(null),
+  }),
 ]);
 export type Beat = z.infer<typeof BeatSchema>;
 
 export const SfxSchema = z.object({
   t: Sec,
-  kind: z.enum(["pop", "whoosh", "tick", "soft", "riser", "impact", "swipe", "click", "sweep", "tonal", "trace"]),
+  kind: z.enum(["pop", "whoosh", "tick", "soft", "riser", "impact", "swipe", "click", "sweep", "tonal", "trace", "reveal", "type", "bell"]),
   /** Linear gain (0..1) — kept well under the voice. */
   gain: z.number().min(0).max(1),
   reason: z.string(),
