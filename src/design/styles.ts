@@ -4,7 +4,7 @@ import { FONT_FAMILIES, type FontId } from "./fontNames";
 /** Brand palette (default). User colours override it via the storyboard `style.colors`. */
 export const BRAND = { graphite: "#141414", burgundy: "#6B1732", softWhite: "#F7F5F2", white: "#FFFFFF" } as const;
 
-export const StylePresetSchema = z.enum(["brand", "minimal", "kinetic", "glass", "lime"]);
+export const StylePresetSchema = z.enum(["brand", "minimal", "kinetic", "glass", "lime", "editorial"]);
 export type StylePreset = z.infer<typeof StylePresetSchema>;
 
 export const ColorsSchema = z.object({
@@ -41,6 +41,12 @@ export type StyleDef = {
   maxWordsPerPhrase: number;
   maxCharsPerLine: number;
   emphasisScale: number;
+  /** Typography roles (all fonts contain Kazakh letters): titles/cards/word behind the head, elegant accent line. */
+  titleFont: FontId;
+  titleWeight: number;
+  titleUppercase: boolean;
+  accentFont: FontId;
+  accentItalic: boolean;
 };
 
 export const STYLES: Record<StylePreset, StyleDef> = {
@@ -50,6 +56,7 @@ export const STYLES: Record<StylePreset, StyleDef> = {
     font: "onest", weight: 800, uppercase: false, size: 0.048, lineHeight: 1.08, letterSpacing: -0.01,
     colors: { text: BRAND.white, accent: BRAND.burgundy, onAccent: BRAND.white, upcoming: "rgba(255,255,255,0.72)" },
     active: "pill", upcoming: "dim", backdrop: "shadow", enter: "pop", maxWordsPerPhrase: 4, maxCharsPerLine: 22, emphasisScale: 1.06,
+    titleFont: "intertight", titleWeight: 900, titleUppercase: true, accentFont: "cormorant", accentItalic: true,
   },
   minimal: {
     label: "Minimal",
@@ -57,6 +64,7 @@ export const STYLES: Record<StylePreset, StyleDef> = {
     font: "inter", weight: 700, uppercase: false, size: 0.044, lineHeight: 1.12, letterSpacing: -0.005,
     colors: { text: BRAND.white, accent: "#E6B43C", onAccent: "#141414", upcoming: BRAND.white },
     active: "color", upcoming: "visible", backdrop: "shadow", enter: "fade", maxWordsPerPhrase: 5, maxCharsPerLine: 22, emphasisScale: 1.0,
+    titleFont: "intertight", titleWeight: 800, titleUppercase: false, accentFont: "cormorant", accentItalic: true,
   },
   kinetic: {
     label: "Kinetic",
@@ -64,6 +72,7 @@ export const STYLES: Record<StylePreset, StyleDef> = {
     font: "montserrat", weight: 900, uppercase: true, size: 0.052, lineHeight: 1.0, letterSpacing: 0,
     colors: { text: BRAND.white, accent: "#FF2D2D", onAccent: BRAND.white, upcoming: BRAND.white },
     active: "pill", upcoming: "hidden", backdrop: "shadow", enter: "pop", maxWordsPerPhrase: 3, maxCharsPerLine: 16, emphasisScale: 1.1,
+    titleFont: "montserrat", titleWeight: 900, titleUppercase: true, accentFont: "montserrat", accentItalic: false,
   },
   glass: {
     label: "Glass",
@@ -71,6 +80,7 @@ export const STYLES: Record<StylePreset, StyleDef> = {
     font: "onest", weight: 700, uppercase: false, size: 0.045, lineHeight: 1.1, letterSpacing: -0.01,
     colors: { text: BRAND.white, accent: "#7FD3FF", onAccent: "#0B1A24", upcoming: "rgba(255,255,255,0)" },
     active: "color", upcoming: "hidden", backdrop: "glass", enter: "rise", maxWordsPerPhrase: 4, maxCharsPerLine: 20, emphasisScale: 1.06,
+    titleFont: "geologica", titleWeight: 800, titleUppercase: false, accentFont: "onest", accentItalic: false,
   },
   lime: {
     label: "Lime",
@@ -78,6 +88,15 @@ export const STYLES: Record<StylePreset, StyleDef> = {
     font: "montserrat", weight: 900, uppercase: true, size: 0.05, lineHeight: 1.02, letterSpacing: 0.005,
     colors: { text: "#141414", accent: "#C8FF2E", onAccent: "#141414", upcoming: "#141414" },
     active: "scale", upcoming: "visible", backdrop: "none", enter: "slide", maxWordsPerPhrase: 3, maxCharsPerLine: 16, emphasisScale: 1.08,
+    titleFont: "montserrat", titleWeight: 900, titleUppercase: true, accentFont: "badscript", accentItalic: false,
+  },
+  editorial: {
+    label: "Editorial",
+    description: "Премиум-постер: Inter Tight + курсив Cormorant, молочный/розовый/бордо, спокойные появления.",
+    font: "intertight", weight: 800, uppercase: false, size: 0.047, lineHeight: 1.06, letterSpacing: -0.02,
+    colors: { text: "#F7F5F2", accent: "#F2D5E4", onAccent: "#191919", upcoming: "rgba(247,245,242,0.55)" },
+    active: "color", upcoming: "dim", backdrop: "shadow", enter: "rise", maxWordsPerPhrase: 4, maxCharsPerLine: 20, emphasisScale: 1.08,
+    titleFont: "intertight", titleWeight: 900, titleUppercase: true, accentFont: "cormorant", accentItalic: true,
   },
 };
 
@@ -133,6 +152,11 @@ export const StyleOverridesSchema = z
     maxWordsPerPhrase: z.number().int().min(1).max(8),
     maxCharsPerLine: z.number().int().min(8).max(32),
     emphasisScale: z.number().min(1).max(1.3),
+    titleFont: z.enum(Object.keys(FONT_FAMILIES) as [FontId, ...FontId[]]),
+    titleWeight: z.number().int().min(300).max(900),
+    titleUppercase: z.boolean(),
+    accentFont: z.enum(Object.keys(FONT_FAMILIES) as [FontId, ...FontId[]]),
+    accentItalic: z.boolean(),
   })
   .partial();
 export type StyleOverrides = z.infer<typeof StyleOverridesSchema>;

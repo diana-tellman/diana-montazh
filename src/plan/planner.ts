@@ -4,12 +4,13 @@ import type { Project } from "../core/project";
 import { contrastRatio, resolveStyle, type Colors, type StyleDef, type StyleOverrides, type StylePreset } from "../design/styles";
 import { FORMATS, type FormatId } from "../formats";
 import { chooseFraming, computeWindow, easeInOut, mapRect, type Framing } from "../layout/frame";
-import { captionBand, inside, overlaps, safeZone, type Platform, type Rect } from "../layout/safeZones";
+import { captionBand, insideSafe, overlaps, safeZone, type Platform, type Rect } from "../layout/safeZones";
 import type { Transcript } from "../speech/transcript";
-import type { BehindText, CameraKey, Caption, Check, Scene, Sfx, Storyboard, Visual } from "../storyboard/schema";
+import type { BehindText, Callout, CameraKey, Caption, Check, Scene, Sfx, Storyboard, Visual } from "../storyboard/schema";
 import { cameraAt, layoutAt } from "../storyboard/schema";
 import type { Icon, Layout } from "../storyboard/schema";
-import { clipToPerson, personWindow } from "../layout/person";
+import { cardRect, clipToBox, personAt } from "../layout/person";
+import { autoBeats, directionsToBeats, mergeBeats, type DirectorBeat, type Directions } from "./director";
 import { iconForWord } from "../design/icons";
 import { groupPhrases, parseEmphasis, splitLines, type TWord } from "./phrases";
 
@@ -34,6 +35,10 @@ export type PlanOptions = {
   layout: "auto" | "full" | "circle" | "split";
   /** Animated icons on matching words. */
   icons: boolean;
+  /** Meaning-driven layouts (example → window, compare → split, process → explainer). Off when layout is forced. */
+  semantic?: boolean;
+  /** Project-relative background music (ducked under the voice), or null. */
+  music?: string | null;
 };
 
 export const DEFAULT_OPTIONS: PlanOptions = {
@@ -49,6 +54,8 @@ export type PlanInput = {
   /** Project-relative colour-graded proxy per video asset (reference look). */
   graded?: Record<string, string>;
   options: PlanOptions;
+  /** Claude's meaning decisions (storyboard/directions.json), or null = automatic. */
+  directions?: Directions | null;
 };
 
 const FACE_TARGET = { x: 0.5, y: 0.36 };
@@ -57,9 +64,29 @@ const r3 = (n: number) => Math.round(n * 1000) / 1000;
 
 /** Approximate rendered text width in px (the composition also fits text in the browser). */
 export function estTextWidth(text: string, fontPx: number, st: StyleDef): number {
-  const factors: Record<string, number> = { montserrat: 0.64, inter: 0.56, onest: 0.57, ptserif: 0.55, oswald: 0.45, rubik: 0.59, raleway: 0.58, nunito: 0.57 };
+  const factors: Record<string, number> = { montserrat: 0.64, inter: 0.56, onest: 0.57, ptserif: 0.55, oswald: 0.45, rubik: 0.59, raleway: 0.58, nunito: 0.57, intertight: 0.53, geologica: 0.6, cormorant: 0.46, badscript: 0.52 };
   const f = factors[st.font] ?? 0.6;
   return text.length * fontPx * f * (st.uppercase ? 1.12 : 1) + text.length * st.letterSpacing * fontPx;
+}
+
+const INTENT_LABEL: Record<string, string> = {
+  example: "Мысал", compare: "Салыстыру", process: "Процесс", emotion: "Эмоция", key: "Негізгі ой", cta: "Шақыру", question: "Сұрақ", neutral: "Кадр",
+};
+const LAYOUT_LABEL: Record<string, string> = {
+  split: "экран делится: сверху фото/видео, снизу вы", circle: "вы в круге поверх фона", full: "весь кадр",
+  pip: "спикер переезжает в окно сверху, ниже — пример", compare: "экран делится: сверху сравнение А / Б, снизу вы",
+  explainer: "спикер уходит из кадра, голос продолжается — полноэкранная анимация-схема",
+};
+
+/** Speech intervals (pauses < 0.35 s merged) — music is ducked there. */
+export function speechSpans(words: TWord[]): Array<[number, number]> {
+  const out: Array<[number, number]> = [];
+  for (const w of words) {
+    const last = out.at(-1);
+    if (last && w.start - last[1] < 0.35) last[1] = Math.max(last[1], w.end);
+    else out.push([w.start, w.end]);
+  }
+  return out.map(([a, b]) => [r3(a), r3(b)]);
 }
 
 export function buildStoryboard(inp: PlanInput, version = 1): Storyboard {
@@ -202,7 +229,14 @@ export function buildStoryboard(inp: PlanInput, version = 1): Storyboard {
     return { start, end };
   };
 
-  // ---------- layouts (person full / in a circle / split screen) ----------
+  // ---------- meaning → beats (what is said decides how the frame is built) ----------
+  const hasPerson = project.mode === "expert-video" && !!mainVideo?.info.video;
+  const auto = autoBeats({ phrases, duration, hasPerson });
+  const manual = inp.directions ? directionsToBeats(inp.directions, phrases) : [];
+  const beats: DirectorBeat[] = mergeBeats(auto, manual, inp.directions?.replaceAuto ?? false);
+  const semantic = o.semantic !== false && o.layout === "auto";
+
+  // ---------- layouts (full / circle / split / pip window / compare / explainer) ----------
   const layouts: Layout[] = [];
   const secondaries = project.mode === "expert-video" ? project.assets.filter((a) => a.role === "photo" || a.role === "broll-video") : [];
   const sec = (i: number) => {
@@ -210,18 +244,33 @@ export function buildStoryboard(inp: PlanInput, version = 1): Storyboard {
     if (!a?.info.video) return { secondary: null, secondaryKind: "graphic" as const, secondaryW: W, secondaryH: H };
     return { secondary: a.prepared, secondaryKind: a.role === "photo" ? ("photo" as const) : ("video" as const), secondaryW: a.info.video.width, secondaryH: a.info.video.height };
   };
+  const graphicSec = { secondary: null, secondaryKind: "graphic" as const, secondaryW: W, secondaryH: H };
+  let usedSec = 0;
+  if (semantic) {
+    for (const b of beats) {
+      if (!b.card || !(b.intent === "example" || b.intent === "compare" || b.intent === "process")) continue;
+      const start = r3(capWindow(b.p0).start);
+      const end = r3(Math.min(duration, capWindow(b.p1).end));
+      if (end - start < 1.2 || layouts.some((l) => start < l.end && end > l.start)) continue;
+      // Without a speaker on screen every meaning layout is a full-screen explainer graphic.
+      const kind = !hasPerson ? "explainer" : b.intent === "example" ? "pip" : b.intent === "compare" ? "compare" : "explainer";
+      const media = kind === "pip" && usedSec < secondaries.length ? sec(usedSec++) : graphicSec;
+      layouts.push({ id: `l${layouts.length + 1}`, start, end, kind, ...media, shape: kind === "pip" ? b.shape ?? "rounded" : undefined, intent: b.intent, card: b.card });
+    }
+  }
   if (project.mode === "expert-video") {
     if (o.layout === "circle" || o.layout === "split") {
       const n = Math.max(1, secondaries.length);
       for (let i = 0; i < n; i++) layouts.push({ id: `l${i + 1}`, start: r3((i * duration) / n), end: r3(((i + 1) * duration) / n), kind: o.layout, ...sec(i) });
-    } else if (o.layout === "auto" && secondaries.length) {
-      // One split-screen moment per extra photo/clip, on phrase boundaries, spread across the video.
+    } else if (o.layout === "auto" && secondaries.length > usedSec) {
+      // One split-screen moment per remaining photo/clip, on phrase boundaries, spread across the video.
       // Boundaries coincide with caption boundaries, so no caption straddles two layouts.
-      secondaries.forEach((_, i) => {
-        const ideal = ((i + 1) * duration) / (secondaries.length + 1);
+      secondaries.slice(usedSec).forEach((_, k) => {
+        const i = usedSec + k;
+        const ideal = ((k + 1) * duration) / (secondaries.length - usedSec + 1);
         let a = 0;
-        phrases.forEach((p, k) => {
-          if (Math.abs(p[0]!.start - ideal) < Math.abs(phrases[a]![0]!.start - ideal)) a = k;
+        phrases.forEach((p, q) => {
+          if (Math.abs(p[0]!.start - ideal) < Math.abs(phrases[a]![0]!.start - ideal)) a = q;
         });
         let b = a;
         while (b + 1 < phrases.length && capWindow(b).end - capWindow(a).start < 2.5) b++;
@@ -231,6 +280,30 @@ export function buildStoryboard(inp: PlanInput, version = 1): Storyboard {
         layouts.push({ id: `l${layouts.length + 1}`, start: r3(start), end: r3(end), kind: "split", ...sec(i) });
       });
     }
+  }
+  layouts.sort((a, b) => a.start - b.start);
+  layouts.forEach((l, i) => (l.id = `l${i + 1}`));
+  /** Card areas active in [t0, t1] — no caption, icon or plate may cover them. */
+  const blockedAt = (t0: number, t1: number): Rect[] =>
+    layouts.filter((l) => l.start < t1 && l.end > t0 && l.card).map((l) => cardRect(l.kind)).filter((r): r is Rect => !!r);
+
+  // ---------- emotion: speaker full frame + slow push-in onto the face ----------
+  if (o.cameraEnergy > 0) {
+    for (const b of beats.filter((x) => x.intent === "emotion")) {
+      const s0 = phrases[b.p0]![0]!.start;
+      const s1 = Math.min(duration, phrases[b.p1]!.at(-1)!.end + 0.3);
+      if (s1 - s0 < 0.8 || layouts.some((l) => s0 < l.end && s1 > l.start)) continue;
+      const v = visualAt(s0);
+      if (v.kind !== "video") continue;
+      const base = cameraAt(camera, s0, (x) => x);
+      if (camera.some((k) => k.t > s0 && k.t < s1)) continue; // a cut already happens here
+      const zp = safeZoom(v, Math.min(1.35, base.zoom + 0.12), base.ax, base.ay, s0, s1);
+      if (zp <= base.zoom + 0.02) continue;
+      camera.push({ t: r3(s0 + 0.6), zoom: zp, ax: r3(base.ax), ay: r3(base.ay), move: "ease", dur: 0.6 });
+      const nextKey = camera.filter((k) => k.t > s1).sort((x, y) => x.t - y.t)[0];
+      if (!nextKey || nextKey.t - s1 > 0.6) camera.push({ t: r3(Math.min(duration, s1 + 0.4)), zoom: base.zoom, ax: r3(base.ax), ay: r3(base.ay), move: "ease", dur: 0.4 });
+    }
+    camera.sort((a, b) => a.t - b.t);
   }
 
   // Face zone in OUTPUT coordinates over an interval (union of sampled positions).
@@ -244,10 +317,11 @@ export function buildStoryboard(inp: PlanInput, version = 1): Storyboard {
       const v = visualAt(s.t);
       if (v.kind !== "video") continue;
       const cam = cameraAt(camera, s.t, easeInOut);
-      const win = personWindow(layoutAt(layouts, s.t), v.srcW, v.srcH, W, H, v.framing, cam);
+      const pa = personAt(layouts, s.t, v.srcW, v.srcH, W, H, v.framing, cam, true);
+      if (!pa.visible) continue;
       const f = s.face;
       const fw = f.x1 - f.x0;
-      const r = clipToPerson(mapRect({ x0: f.x0 - fw * 0.18, x1: f.x1 + fw * 0.18, y0: f.headTop, y1: f.chinY }, v.srcW, v.srcH, W, H, win), layoutAt(layouts, s.t), W, H);
+      const r = clipToBox(mapRect({ x0: f.x0 - fw * 0.18, x1: f.x1 + fw * 0.18, y0: f.headTop, y1: f.chinY }, v.srcW, v.srcH, W, H, pa.window), pa.box, W, H);
       if (r.y1 <= r.y0 || r.x1 <= r.x0) continue;
       z = z ? { x0: Math.min(z.x0, r.x0), x1: Math.max(z.x1, r.x1), y0: Math.min(z.y0, r.y0), y1: Math.max(z.y1, r.y1) } : r;
     }
@@ -265,16 +339,18 @@ export function buildStoryboard(inp: PlanInput, version = 1): Storyboard {
     const end = r3(cw.end);
     const lines = splitLines(p, st.maxCharsPerLine);
     const zone = faceZoneOut(start, end);
-    const band = captionBand(safe);
-    const safeW = (band.x1 - band.x0) * W;
+    const blocked = blockedAt(start, end);
     const fits = (scale: number, y: number): Rect | null => {
       const px = baseFont * scale;
       const wMax = Math.max(...lines.map((l) => estTextWidth(l.map((w) => w.text).join(" "), px * (l.some((w) => w.emphasis) ? st.emphasisScale : 1), st)));
-      if (wMax + px * 0.6 > safeW) return null;
       const h = (lines.length * px * st.lineHeight + px * 0.5) / H;
+      // Narrower band where the text reaches the platform's button column (lower right).
+      const band = captionBand(safe, y + h);
+      if (wMax + px * 0.6 > (band.x1 - band.x0) * W) return null;
       const box = { x0: 0.5 - wMax / 2 / W - 0.01, x1: 0.5 + wMax / 2 / W + 0.01, y0: y, y1: y + h };
-      if (!inside(box, safe)) return null;
+      if (!insideSafe(box, safe)) return null;
       if (zone && overlaps(box, zone)) return null;
+      if (blocked.some((b) => overlaps(box, b))) return null;
       return box;
     };
     const hOf = (scale: number) => (lines.length * baseFont * scale * st.lineHeight + baseFont * scale * 0.5) / H;
@@ -291,6 +367,7 @@ export function buildStoryboard(inp: PlanInput, version = 1): Storyboard {
         cands.push(safe.y1 - h);
         if (zone) cands.push(zone.y1 + 0.015);
         if (layoutAt(layouts, start + 0.05) === "split") cands.push(0.5 - h - 0.012, 0.5 - h / 2);
+        if (layoutAt(layouts, start + 0.05) === "compare") cands.push(0.5 - h - 0.012, 0.5 + 0.012);
         cands.push(0.62, zone ? zone.y0 - 0.015 - h : 0.25, safe.y0);
       }
       const ok = cands.map((y) => Math.max(safe.y0, Math.min(safe.y1 - h, y))).find((y) => fits(scale, y));
@@ -337,7 +414,6 @@ export function buildStoryboard(inp: PlanInput, version = 1): Storyboard {
   // ---------- icons on matching words ----------
   const icons: Icon[] = [];
   if (o.icons) {
-    const band = captionBand(safe);
     const maxIcons = Math.max(1, Math.ceil(duration / 4.5));
     for (const w of words) {
       if (icons.length >= maxIcons) break;
@@ -346,6 +422,7 @@ export function buildStoryboard(inp: PlanInput, version = 1): Storyboard {
       const t0 = Math.max(0, w.start - 0.1);
       const t1 = Math.min(duration, t0 + 1.8);
       if (behindText.some((b) => t0 < b.end && t1 > b.start)) continue;
+      if (layouts.some((l) => l.kind !== "full" && t0 < l.end + 0.3 && t1 > l.start - 0.3)) continue; // cards carry their own icons
       const size = 0.17;
       const r = size / 2;
       const rh = (r * W) / H;
@@ -356,10 +433,52 @@ export function buildStoryboard(inp: PlanInput, version = 1): Storyboard {
         : [[0.5, 0.3], [0.5, safe.y0 + rh + 0.04]];
       const ok = cands.find(([x, y]) => {
         const box = { x0: x - r, x1: x + r, y0: y - rh, y1: y + rh };
-        return box.x0 >= band.x0 && box.x1 <= band.x1 && box.y0 >= safe.y0 && box.y1 <= safe.y1 && !(zone && overlaps(box, zone)) && !caps.some((c) => overlaps(box, c));
+        const bnd = captionBand(safe, box.y1);
+        return box.x0 >= bnd.x0 && box.x1 <= bnd.x1 && box.y0 >= safe.y0 && box.y1 <= safe.y1 && !(zone && overlaps(box, zone)) && !caps.some((c) => overlaps(box, c));
       });
       if (!ok) continue;
       icons.push({ id: `i${icons.length + 1}`, start: r3(t0), end: r3(t1), name, x: r3(ok[0]), y: r3(ok[1]), size, word: w.text });
+    }
+  }
+
+  // ---------- key thought / call to action → plate (above the head, never on face or captions) ----------
+  const callouts: Callout[] = [];
+  const capBox = (c: Caption) => ({ x0: 0.08, x1: 0.92, y0: c.y - 0.01, y1: c.y + (c.lines.length * st.size * short * c.scale * st.lineHeight + st.size * short * 0.5) / H + 0.01 });
+  for (const b of beats.filter((x) => (x.intent === "key" || x.intent === "cta") && x.plate)) {
+    const t0 = r3(Math.max(0, phrases[b.p0]![0]!.start - 0.05));
+    const t1 = r3(Math.min(duration, Math.max(t0 + 2.2, phrases[b.p1]!.at(-1)!.end + 0.6)));
+    if (layouts.some((l) => l.kind !== "full" && t0 < l.end && t1 > l.start)) continue;
+    if (behindText.some((x) => t0 < x.end && t1 > x.start)) continue;
+    const text = b.plate!.length > 26 ? b.plate!.split(" ").reduce((acc, w) => ((acc + " " + w).trim().length <= 24 ? (acc + " " + w).trim() : acc), "") : b.plate!;
+    const hh = 0.05;
+    const zone = faceZoneOut(t0, t1, 0.01);
+    const caps = captions.filter((c) => c.start < t1 && c.end > t0).map(capBox);
+    // Preferred: above the head, top of the safe zone, under the chin; then any free row (closest to the head first).
+    const scan = Array.from({ length: Math.floor((safe.y1 - hh - safe.y0) / 0.01) + 1 }, (_, k) => safe.y0 + k * 0.01).sort((a, b) => Math.abs(a - (zone?.y1 ?? 0.3)) - Math.abs(b - (zone?.y1 ?? 0.3)));
+    const cands = [zone ? zone.y0 - hh - 0.02 : 0.2, safe.y0 + 0.01, zone ? zone.y1 + 0.02 : 0.5, ...scan];
+    const wN = Math.min(0.84, (text.length * 0.042 * 0.6 * W + 0.042 * W * 1.8) / W);
+    const y = cands.find((yy) => {
+      const box = { x0: 0.5 - wN / 2, x1: 0.5 + wN / 2, y0: yy, y1: yy + hh };
+      return insideSafe(box, safe) && !(zone && overlaps(box, zone)) && !caps.some((c) => overlaps(box, c));
+    });
+    if (y === undefined || !text) continue;
+    const prev = callouts.at(-1);
+    if (prev && prev.end > t0 - 0.05) prev.end = r3(Math.max(prev.start + 0.8, t0 - 0.05));
+    callouts.push({ id: `k${callouts.length + 1}`, start: t0, end: t1, text: st.titleUppercase && b.intent === "key" ? text.toUpperCase() : text, kind: b.intent === "cta" ? "cta" : "glass", y: r3(y) });
+  }
+
+  // Plates win over keyword icons at the same moment (one accent at a time).
+  for (let i = icons.length - 1; i >= 0; i--) if (callouts.some((k) => icons[i]!.start < k.end && icons[i]!.end > k.start)) icons.splice(i, 1);
+  icons.forEach((ic, i) => (ic.id = `i${i + 1}`));
+
+  // A plate never duplicates the subtitle: captions whose words are all on the plate are dropped while it shows.
+  const nw = (x: string) => x.toLowerCase().replace(/ё/g, "е").replace(/[^\p{L}\p{N}]/gu, "");
+  for (const k of callouts) {
+    const on = new Set(k.text.split(/\s+/).map(nw).filter(Boolean));
+    for (let i = captions.length - 1; i >= 0; i--) {
+      const c = captions[i]!;
+      if (c.start < k.start - 0.1 || c.start >= k.end) continue;
+      if (c.lines.flat().every((w) => on.has(nw(w.text)))) captions.splice(i, 1);
     }
   }
 
@@ -371,7 +490,10 @@ export function buildStoryboard(inp: PlanInput, version = 1): Storyboard {
       sfx.push({ t: r3(t), kind, gain, reason });
     };
     behindText.forEach((b) => add(b.start - 0.12, "whoosh", 0.2, `Жазу бастың артында: ${b.text}`));
-    layouts.forEach((l) => add(l.start - 0.08, "whoosh", 0.16, `Макет: ${l.kind}`));
+    layouts.forEach((l) => add(l.start - 0.08, l.kind === "explainer" ? "swipe" : "whoosh", 0.16, `Макет: ${l.kind}`));
+    // Each card element sounds exactly when it appears (= when its word is spoken).
+    layouts.forEach((l) => l.card?.items.forEach((it, k) => add(it.at, l.card!.variant === "steps" ? "click" : l.card!.variant === "compare" && k === 1 ? "impact" : "pop", l.card!.variant === "compare" && k === 1 ? 0.14 : 0.15, `Карточка: ${it.text}`)));
+    callouts.forEach((c) => add(c.start, c.kind === "cta" ? "pop" : "soft", 0.15, `Плашка: ${c.text}`));
     icons.forEach((ic) => add(ic.start, "pop", 0.16, `Иконка: ${ic.name}`));
     camera.filter((k) => k.move === "cut" && k.t > 0.3).forEach((k) => add(k.t - 0.05, "soft", 0.14, "Склейка/смена плана"));
     captions.forEach((c) => {
@@ -393,15 +515,19 @@ export function buildStoryboard(inp: PlanInput, version = 1): Storyboard {
 
   // ---------- scenes for the storyboard ----------
   const cutTimes = camera.filter((k) => k.move === "cut").map((k) => k.t);
-  let bounds = [...new Set([0, ...cutTimes.filter((t) => t > 0.3 && t < duration - 0.3)])].sort((a, b) => a - b);
+  // Every meaning layout gets its own storyboard frame (start and the return to full frame).
+  const pinned = new Set(layouts.flatMap((l) => [l.start, l.end]).filter((t) => t > 0.3 && t < duration - 0.3).map(r3));
+  let bounds = [...new Set([0, ...cutTimes.filter((t) => t > 0.3 && t < duration - 0.3 && ![...pinned].some((p) => Math.abs(p - t) < 0.6)), ...pinned])].sort((a, b) => a - b);
   while (bounds.length > 12) {
-    // merge the shortest scene with its neighbour
-    let k = 1;
+    // merge the shortest scene with its neighbour (never remove a layout boundary)
+    let k = -1;
     let best = Infinity;
     for (let i = 1; i < bounds.length; i++) {
+      if (pinned.has(bounds[i]!)) continue;
       const d = (bounds[i + 1] ?? duration) - bounds[i - 1]!;
       if (d < best) (best = d), (k = i);
     }
+    if (k < 0) break;
     bounds.splice(k, 1);
   }
   if (bounds.length < 4 && duration > 8) {
@@ -420,7 +546,10 @@ export function buildStoryboard(inp: PlanInput, version = 1): Storyboard {
     const inScene = caps.filter((c) => c.lines.flat().at(-1)!.end > s0 && c.lines.flat().at(-1)!.start < s1 - 0.05);
     const keyCap = inScene.find((c) => c.lines.flat().some((w) => w.emphasis)) ?? inScene[0];
     const lastW = keyCap?.lines.flat().at(-1);
-    const keyT = bt[0]
+    const layCard = lay.find((l) => l.card && l.start >= s0 - 0.01);
+    const keyT = layCard
+      ? Math.min(s1 - 0.05, layCard.end - 0.35, Math.max(layCard.start + 0.6, (layCard.card!.items.at(-1)?.at ?? layCard.start) + 0.6))
+      : bt[0]
       ? Math.min(s1 - 0.05, bt[0].start + 0.9)
       : keyCap && lastW
         ? Math.max(s0, Math.min(s1 - 0.05, keyCap.end - 0.3, lastW.start + Math.max(0.08, (lastW.end - lastW.start) * 0.6)))
@@ -429,10 +558,10 @@ export function buildStoryboard(inp: PlanInput, version = 1): Storyboard {
     const v = visualAt(keyT);
     return {
       index: i + 1, start: r3(s0), end: r3(s1), keyT: r3(keyT),
-      title: bt[0] ? `Жазу артта: ${bt[0].text}` : caps[0] ? caps[0].lines.flat().map((w) => w.text).join(" ").slice(0, 40) : "—",
+      title: layCard ? `${INTENT_LABEL[layCard.intent ?? "neutral"]}: ${layCard.card!.items.map((x) => x.text).join(" · ")}` : bt[0] ? `Жазу артта: ${bt[0].text}` : caps[0] ? caps[0].lines.flat().map((w) => w.text).join(" ").slice(0, 40) : "—",
       onScreenText: caps.map((c) => c.lines.map((l) => l.map((w) => (w.emphasis ? `*${w.text}*` : w.text)).join(" ")).join(" / ")).join(" | "),
       camera: v.kind === "video" ? `зум ×${cam.zoom.toFixed(2)}${camera.some((k) => k.move === "ease" && k.t > s0 && k.t <= s1) ? ", плавный наезд" : ""}, ${v.framing === "contain" ? "видео в рамке + размытый фон" : "лицо в верхней трети"}` : v.kind === "photo" ? "фото, медленный наезд (Ken Burns)" : "графический фон",
-      animation: `${st.label}: ${st.enter === "pop" ? "слова выпрыгивают" : st.enter === "rise" ? "слова поднимаются" : st.enter === "slide" ? "слова выезжают" : "плавное появление"}, активное слово — ${st.active === "pill" ? "плашка" : st.active === "color" ? "цвет" : st.active === "scale" ? "увеличение" : "подчёркивание"}${bt.length ? "; крупное слово за головой" : ""}${lay.length ? `; ${lay.map((l) => (l.kind === "split" ? "экран делится: сверху фото/видео, снизу вы" : l.kind === "circle" ? "вы в круге поверх фона" : "весь кадр")).join(", ")}` : ""}${ics.length ? `; иконки: ${ics.map((x) => `${x.name} («${x.word}»)`).join(", ")}` : ""}`,
+      animation: `${st.label}: ${st.enter === "pop" ? "слова выпрыгивают" : st.enter === "rise" ? "слова поднимаются" : st.enter === "slide" ? "слова выезжают" : "плавное появление"}, активное слово — ${st.active === "pill" ? "плашка" : st.active === "color" ? "цвет" : st.active === "scale" ? "увеличение" : "подчёркивание"}${bt.length ? "; крупное слово за головой" : ""}${lay.length ? `; ${lay.map((l) => LAYOUT_LABEL[l.kind] ?? "весь кадр").join(", ")}` : ""}${beats.filter((b) => phrases[b.p0]![0]!.start < s1 && phrases[b.p1]!.at(-1)!.end > s0).map((b) => `; мағынасы: ${b.reason}`).join("")}${callouts.filter((c) => c.start < s1 && c.end > s0).map((c) => `; плашка «${c.text}»`).join("")}${ics.length ? `; иконки: ${ics.map((x) => `${x.name} («${x.word}»)`).join(", ")}` : ""}`,
       sfx: fx.length ? fx.map((x) => `${x.kind} ${x.t.toFixed(1)}с`).join(", ") : "—",
       checks: checks.filter((c) => c.at !== null && c.at >= s0 && c.at < s1),
     };
@@ -444,7 +573,9 @@ export function buildStoryboard(inp: PlanInput, version = 1): Storyboard {
     style: { preset: o.style, colors, captionPosition: o.captionPosition, overrides: o.styleOverrides ?? {}, source: o.styleSource ?? o.style },
     grade: o.grade ?? null,
     voice: { src: voice.prepared, gain: 1 },
-    visuals, camera, captions, behindText, callouts: [], layouts, icons, sfx, progressBar: o.progressBar, scenes, checks,
+    visuals, camera, captions, behindText, callouts, layouts, icons, sfx, progressBar: o.progressBar, scenes, checks,
+    music: o.music ? { src: o.music, gain: 0.2, duck: 0.07, speech: speechSpans(words) } : null,
+    beats: beats.map((b) => ({ start: r3(phrases[b.p0]![0]!.start), end: r3(phrases[b.p1]!.at(-1)!.end), intent: b.intent, reason: b.reason, source: b.source })),
     transcriptNote: transcript.notes.join(" "),
   };
 }

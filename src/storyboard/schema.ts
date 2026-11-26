@@ -69,19 +69,37 @@ export const CalloutSchema = z.object({
   y: z.number(),
 });
 
+/** Meaning of a moment in the speech → how the frame is built (see src/plan/director.ts). */
+export const IntentSchema = z.enum(["emotion", "example", "compare", "process", "key", "cta", "question", "neutral"]);
+
+/** Graphic card shown in a layout: example keyword, A-vs-B comparison or process steps. */
+export const CardSchema = z.object({
+  variant: z.enum(["example", "compare", "steps"]),
+  /** Small line above the card (optional). */
+  title: z.string(),
+  /** Each item appears exactly when its word is spoken (`at`, seconds). */
+  items: z.array(z.object({ text: z.string(), icon: z.string().nullable(), at: Sec })).max(5),
+});
+
 /** Screen layout over a time range. Default (no entry) = full frame. */
 export const LayoutSchema = z.object({
   id: z.string(),
   start: Sec,
   end: Sec,
-  /** full = person fills the frame; circle = person in a round frame over a background;
-   *  split = screen split in two: top = secondary visual, bottom = person. */
-  kind: z.enum(["full", "circle", "split"]),
+  /** full = person fills the frame; circle = person in a big round frame over a background;
+   *  split = top: secondary visual, bottom: person; pip = person in a rounded/round window at the top, example below;
+   *  compare = top: A-vs-B card, bottom: person; explainer = person hidden, full-screen explainer animation (voice continues). */
+  kind: z.enum(["full", "circle", "split", "pip", "compare", "explainer"]),
   /** Project-relative photo/video for the other part (null = brand graphic background). */
   secondary: z.string().nullable(),
   secondaryKind: z.enum(["photo", "video", "graphic"]),
   secondaryW: z.number().positive(),
   secondaryH: z.number().positive(),
+  /** pip window shape. */
+  shape: z.enum(["rounded", "circle"]).optional(),
+  /** Why this layout was chosen (meaning of the speech). */
+  intent: IntentSchema.optional(),
+  card: CardSchema.nullable().optional(),
 });
 
 /** Animated line icon tied to a word in the speech. */
@@ -100,7 +118,7 @@ export const IconSchema = z.object({
 
 export const SfxSchema = z.object({
   t: Sec,
-  kind: z.enum(["pop", "whoosh", "tick", "soft", "riser"]),
+  kind: z.enum(["pop", "whoosh", "tick", "soft", "riser", "swipe", "click", "impact"]),
   /** Linear gain (0..1) — kept well under the voice. */
   gain: z.number().min(0).max(1),
   reason: z.string(),
@@ -155,6 +173,20 @@ export const StoryboardSchema = z.object({
   layouts: z.array(LayoutSchema),
   icons: z.array(IconSchema),
   sfx: z.array(SfxSchema),
+  /** Background music, ducked under the voice (never louder than speech). null = none (or already in the video). */
+  music: z
+    .object({
+      src: z.string(),
+      /** Linear gain in pauses / under speech. */
+      gain: z.number().min(0).max(0.5),
+      duck: z.number().min(0).max(0.25),
+      /** Speech intervals [start, end] (seconds) where the music is ducked. */
+      speech: z.array(z.tuple([Sec, Sec])),
+    })
+    .nullable()
+    .optional(),
+  /** Meaning-driven decisions (for the storyboard text and for Claude's review). */
+  beats: z.array(z.object({ start: Sec, end: Sec, intent: IntentSchema, reason: z.string(), source: z.enum(["auto", "claude"]) })).optional(),
   progressBar: z.boolean(),
   scenes: z.array(SceneSchema),
   checks: z.array(CheckSchema),
@@ -171,6 +203,8 @@ export type Callout = z.infer<typeof CalloutSchema>;
 export type Sfx = z.infer<typeof SfxSchema>;
 export type Layout = z.infer<typeof LayoutSchema>;
 export type Icon = z.infer<typeof IconSchema>;
+export type Intent = z.infer<typeof IntentSchema>;
+export type Card = z.infer<typeof CardSchema>;
 export type Check = z.infer<typeof CheckSchema>;
 export type Scene = z.infer<typeof SceneSchema>;
 export type Storyboard = z.infer<typeof StoryboardSchema>;
@@ -192,4 +226,18 @@ export function cameraAt(keys: CameraKey[], t: number, easeFn: (x: number) => nu
 /** Layout kind active at time t (full when none). */
 export function layoutAt(layouts: Layout[], t: number): Layout["kind"] {
   return layouts.find((l) => t >= l.start && t < l.end)?.kind ?? "full";
+}
+
+/** Seconds of the animated move between full frame and a layout (in / out). */
+export const LAYOUT_IN = 0.35;
+export const LAYOUT_OUT = 0.3;
+
+/** Active layout at t and its transition progress p (0 = full frame, 1 = layout fully on). */
+export function layoutStateAt(layouts: Layout[], t: number): { layout: Layout | null; kind: Layout["kind"]; p: number } {
+  const l = layouts.find((x) => t >= x.start && t < x.end) ?? null;
+  if (!l || l.kind === "full") return { layout: l, kind: "full", p: 0 };
+  const pin = Math.min(1, Math.max(0, (t - l.start) / LAYOUT_IN));
+  const pout = Math.min(1, Math.max(0, (l.end - t) / LAYOUT_OUT));
+  const x = Math.min(pin, pout);
+  return { layout: l, kind: l.kind, p: x < 0.5 ? 2 * x * x : 1 - (-2 * x + 2) ** 2 / 2 };
 }

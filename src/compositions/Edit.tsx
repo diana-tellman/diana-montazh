@@ -5,10 +5,10 @@ import { z } from "zod";
 import { ensureFontsLoaded, FONT_FAMILIES } from "../design/fonts";
 import { contrastRatio, resolveStyle, type StyleDef } from "../design/styles";
 import { easeInOut } from "../layout/frame";
-import { personBox, personWindow, secondaryBox } from "../layout/person";
+import { cardRect, personAt, secondaryBox } from "../layout/person";
 import { ICONS } from "../design/icons";
 import { captionBand, safeZone } from "../layout/safeZones";
-import { cameraAt, layoutAt, StoryboardSchema, type BehindText, type Callout, type Caption, type Icon, type Layout, type Storyboard, type Visual } from "../storyboard/schema";
+import { cameraAt, layoutStateAt, LAYOUT_IN, LAYOUT_OUT, StoryboardSchema, type BehindText, type Callout, type Caption, type Card, type Icon, type Layout, type Storyboard, type Visual } from "../storyboard/schema";
 
 ensureFontsLoaded();
 
@@ -55,7 +55,7 @@ const Graphic: React.FC<{ sb: Storyboard }> = ({ sb }) => {
 /** Source-aligned layer: everything inside moves exactly like the video (used for the cut-out too). */
 const Framed: React.FC<{ v: Visual; sb: Storyboard; t: number; children: React.ReactNode }> = ({ v, sb, t, children }) => {
   const cam = cameraAt(sb.camera, t, easeInOut);
-  const win = personWindow(layoutAt(sb.layouts, t), v.srcW, v.srcH, sb.width, sb.height, v.framing, cam);
+  const win = personAt(sb.layouts, t, v.srcW, v.srcH, sb.width, sb.height, v.framing, cam).window;
   return (
     <div style={{ position: "absolute", left: 0, top: 0, width: v.srcW, height: v.srcH, transformOrigin: "0 0", transform: `translate(${win.offX}px, ${win.offY}px) scale(${win.scale})` }}>
       {children}
@@ -63,20 +63,22 @@ const Framed: React.FC<{ v: Visual; sb: Storyboard; t: number; children: React.R
   );
 };
 
-/** The other part of a circle / split layout: photo (slow push), clip or brand graphic. */
+/** The other part of a layout: photo (slow push), clip or brand graphic. */
 const Secondary: React.FC<{ l: Layout; sb: Storyboard }> = ({ l, sb }) => {
   const frame = useCurrentFrame();
   const b = secondaryBox(l.kind, sb.width, sb.height);
   const push = 1 + 0.06 * (frame / Math.max(1, (l.end - l.start) * sb.fps));
+  const media = l.secondaryKind !== "graphic" && l.secondary;
   return (
     <div style={{ position: "absolute", left: b.x, top: b.y, width: b.w, height: b.h, overflow: "hidden", backgroundColor: "#141414" }}>
-      {l.secondaryKind === "graphic" || !l.secondary ? (
+      {!media ? (
         <Graphic sb={sb} />
       ) : l.secondaryKind === "photo" ? (
-        <Img src={staticFile(l.secondary)} style={{ width: "100%", height: "100%", objectFit: "cover", transform: `scale(${push})` }} />
+        <Img src={staticFile(l.secondary!)} style={{ width: "100%", height: "100%", objectFit: "cover", transform: `scale(${push})` }} />
       ) : (
-        <Video src={staticFile(l.secondary)} muted objectFit="cover" style={{ width: "100%", height: "100%" }} />
+        <Video src={staticFile(l.secondary!)} muted objectFit="cover" style={{ width: "100%", height: "100%" }} />
       )}
+      {media && l.card ? <AbsoluteFill style={{ background: "linear-gradient(180deg, rgba(0,0,0,0.15) 0%, rgba(0,0,0,0.55) 100%)" }} /> : null}
     </div>
   );
 };
@@ -85,18 +87,22 @@ const VisualLayer: React.FC<{ v: Visual; sb: Storyboard }> = ({ v, sb }) => {
   const frame = useCurrentFrame(); // local to the Sequence
   const t = v.start + frame / sb.fps;
   if (v.kind === "graphic") return <Graphic sb={sb} />;
-  const kind = layoutAt(sb.layouts, t);
-  const box = personBox(kind, sb.width, sb.height);
-  const clip = kind === "circle" ? `circle(${box.w / 2}px at ${box.x + box.w / 2}px ${box.y + box.h / 2}px)` : kind === "split" ? `inset(${box.y}px 0 0 0)` : "none";
+  const cam = cameraAt(sb.camera, t, easeInOut);
+  const pa = personAt(sb.layouts, t, v.srcW, v.srcH, sb.width, sb.height, v.framing, cam);
+  const { box } = pa;
+  const W = sb.width;
+  const H = sb.height;
+  const framed = pa.kind !== "full" && pa.kind !== "explainer";
+  const clip = framed ? `inset(${box.y}px ${W - box.x - box.w}px ${H - box.y - box.h}px ${box.x}px round ${pa.radius}px)` : "none";
   const f = (s: number) => Math.round(s * sb.fps);
   return (
     <AbsoluteFill style={{ backgroundColor: "#141414", overflow: "hidden" }}>
-      {sb.layouts.filter((l) => l.end > v.start && l.start < v.end && l.kind !== "full").map((l) => (
+      {sb.layouts.filter((l) => l.end > v.start && l.start < v.end && l.kind !== "full" && l.kind !== "explainer").map((l) => (
         <Sequence key={l.id} from={f(l.start - v.start)} durationInFrames={Math.max(1, f(l.end) - f(l.start))}>
           <Secondary l={l} sb={sb} />
         </Sequence>
       ))}
-      {v.fill && kind === "full" ? <Video src={staticFile(v.fill)} muted objectFit="cover" style={{ position: "absolute", width: "100%", height: "100%" }} trimBefore={Math.round(v.srcStart * sb.fps)} /> : null}
+      {v.fill && !framed ? <Video src={staticFile(v.fill)} muted objectFit="cover" style={{ position: "absolute", width: "100%", height: "100%" }} trimBefore={Math.round(v.srcStart * sb.fps)} /> : null}
       <AbsoluteFill style={{ clipPath: clip }}>
         <Framed v={v} sb={sb} t={t}>
           {v.kind === "video" && v.src ? (
@@ -106,12 +112,147 @@ const VisualLayer: React.FC<{ v: Visual; sb: Storyboard }> = ({ v, sb }) => {
           ) : null}
         </Framed>
       </AbsoluteFill>
-      {kind === "circle" ? (
-        <div style={{ position: "absolute", left: box.x - 6, top: box.y - 6, width: box.w + 12, height: box.h + 12, borderRadius: "50%", border: `10px solid ${sb.style.colors.accent === "#141414" ? "#FFFFFF" : "#FFFFFF"}`, boxShadow: `0 0 0 4px ${sb.style.colors.accent}, 0 24px 60px rgba(0,0,0,0.45)` }} />
+      {framed && (pa.kind === "circle" || pa.kind === "pip") ? (
+        <div style={{ position: "absolute", left: box.x - 5, top: box.y - 5, width: box.w + 10, height: box.h + 10, borderRadius: pa.radius + 5, border: `${Math.max(1, 8 * pa.p)}px solid #FFFFFF`, boxShadow: `0 0 0 ${3 * pa.p}px ${sb.style.colors.accent}, 0 24px 60px rgba(0,0,0,${0.45 * pa.p})` }} />
       ) : null}
-      {kind === "split" ? <div style={{ position: "absolute", left: 0, top: box.y - 4, width: sb.width, height: 8, background: sb.style.colors.accent }} /> : null}
+      {framed && (pa.kind === "split" || pa.kind === "compare") ? <div style={{ position: "absolute", left: 0, top: box.y - 4, width: W * pa.p, height: 8, background: sb.style.colors.accent }} /> : null}
     </AbsoluteFill>
   );
+};
+
+// ---------------- meaning cards: example / compare / steps; explainer screen ----------------
+
+const appear = (frame: number, fps: number, at: number, start: number) => {
+  const f0 = Math.round((at - start) * fps);
+  return frame < f0 ? 0 : spring({ frame: frame - f0, fps, config: { damping: 15, stiffness: 160 } });
+};
+const fitPx = (text: string, maxW: number, maxPx: number, k = 0.6) => Math.max(24, Math.min(maxPx, maxW / Math.max(1, text.length * k)));
+
+const IconGlyph: React.FC<{ name: string | null; size: number; color: string; draw: number; fallback?: string }> = ({ name, size, color, draw, fallback }) => {
+  const paths = name ? ICONS[name] ?? [] : [];
+  if (!paths.length) return <span style={{ fontFamily: FONT_FAMILIES.intertight, fontWeight: 900, fontSize: size * 0.7, color, lineHeight: 1 }}>{fallback ?? ""}</span>;
+  return (
+    <svg width={size} height={size} viewBox="0 0 24 24" fill="none" stroke={color} strokeWidth={1.9} strokeLinecap="round" strokeLinejoin="round">
+      {paths.map((p, i) => (
+        <path key={i} d={p} pathLength={1} strokeDasharray={1} strokeDashoffset={1 - draw} />
+      ))}
+    </svg>
+  );
+};
+
+const CardView: React.FC<{ card: Card; l: Layout; sb: Storyboard; st: StyleDef }> = ({ card, l, sb, st }) => {
+  const frame = useCurrentFrame();
+  const { fps } = useVideoConfig();
+  const r = cardRect(l.kind)!;
+  const W = sb.width;
+  const x = r.x0 * W;
+  const y = r.y0 * sb.height;
+  const w = (r.x1 - r.x0) * W;
+  const h = (r.y1 - r.y0) * sb.height;
+  const col = sb.style.colors;
+  const dur = (l.end - l.start) * fps;
+  const out = interpolate(frame, [dur - LAYOUT_OUT * fps, dur], [1, 0], { extrapolateLeft: "clamp", extrapolateRight: "clamp" });
+  const title: React.CSSProperties = { fontFamily: FONT_FAMILIES[st.titleFont], fontWeight: st.titleWeight, textTransform: st.titleUppercase ? "uppercase" : "none", letterSpacing: "-0.02em", lineHeight: 1.02, color: "#FFFFFF", textShadow: "0 6px 30px rgba(0,0,0,0.35)" };
+  const accentLine: React.CSSProperties = { fontFamily: FONT_FAMILIES[st.accentFont], fontStyle: st.accentItalic ? "italic" : "normal", fontWeight: st.accentItalic ? 700 : 600, color: col.accent === "#141414" ? "#FFFFFF" : col.accent };
+  const glass: React.CSSProperties = { background: "rgba(16,16,20,0.58)", border: "1.5px solid rgba(255,255,255,0.22)", boxShadow: "inset 0 1px 0 rgba(255,255,255,0.25), 0 20px 50px rgba(0,0,0,0.35)" };
+  const badge = (d: number, p: number): React.CSSProperties => ({ width: d, height: d, borderRadius: "50%", background: col.accent, display: "flex", alignItems: "center", justifyContent: "center", transform: `scale(${p}) rotate(${(1 - p) * -25}deg)`, boxShadow: "0 12px 30px rgba(0,0,0,0.35)", flex: "none" });
+  const onAcc = col.onAccent;
+
+  if (card.variant === "example") {
+    const it = card.items[0];
+    if (!it) return null;
+    const p = appear(frame, fps, it.at, l.start);
+    const label = st.titleUppercase ? it.text.toUpperCase() : it.text;
+    const px = fitPx(label, w * 0.84, W * 0.11, st.titleUppercase ? 0.76 : 0.62);
+    return (
+      <div style={{ position: "absolute", left: x, top: y, width: w, height: h, borderRadius: 44, ...glass, opacity: out, display: "flex", flexDirection: "column", alignItems: "center", justifyContent: "center", gap: h * 0.06 }}>
+        {card.title ? <div style={{ ...accentLine, fontSize: W * 0.05, opacity: p }}>{card.title}</div> : null}
+        <div style={badge(W * 0.12, p)}>
+          <IconGlyph name={it.icon} size={W * 0.07} color={onAcc} draw={Math.min(1, p * 1.2)} fallback="→" />
+        </div>
+        <div style={{ ...title, fontSize: px, textAlign: "center", padding: "0 4%", clipPath: `inset(0 0 ${(1 - p) * 100}% 0)`, transform: `translateY(${(1 - p) * 30}px)` }}>{label}</div>
+      </div>
+    );
+  }
+
+  if (card.variant === "compare") {
+    const [a, b] = card.items;
+    if (!a || !b) return null;
+    const pa = appear(frame, fps, a.at, l.start);
+    const pb = appear(frame, fps, b.at, l.start);
+    const colW = w * 0.44;
+    const panel = (it: Card["items"][number], p: number, side: -1 | 1, hi: boolean) => {
+      const label = st.titleUppercase ? it.text.toUpperCase() : it.text;
+      return (
+        <div style={{ width: colW, height: h * 0.82, borderRadius: 40, ...glass, ...(hi ? { border: `3px solid ${col.accent}` } : {}), display: "flex", flexDirection: "column", alignItems: "center", justifyContent: "center", gap: h * 0.06, opacity: p, transform: `translateX(${side * (1 - p) * 120}px)` }}>
+          <div style={badge(W * 0.13, p)}>
+            <IconGlyph name={it.icon} size={W * 0.075} color={onAcc} draw={p} fallback={side < 0 ? "A" : "B"} />
+          </div>
+          <div style={{ ...title, fontSize: fitPx(label, colW * 0.8, W * 0.07, st.titleUppercase ? 0.78 : 0.64), textAlign: "center", padding: "0 6%" }}>{label}</div>
+        </div>
+      );
+    };
+    const vs = appear(frame, fps, Math.max(a.at, b.at - 0.15), l.start);
+    return (
+      <div style={{ position: "absolute", left: x, top: y, width: w, height: h, opacity: out, display: "flex", alignItems: "center", justifyContent: "space-between" }}>
+        {panel(a, pa, -1, false)}
+        {panel(b, pb, 1, true)}
+        <div style={{ position: "absolute", left: w / 2 - W * 0.065, top: h * 0.5 - W * 0.065, width: W * 0.13, height: W * 0.13, borderRadius: "50%", background: "#FFFFFF", color: "#141414", display: "flex", alignItems: "center", justifyContent: "center", fontFamily: FONT_FAMILIES.intertight, fontWeight: 900, fontSize: W * 0.045, transform: `scale(${vs})`, boxShadow: "0 10px 30px rgba(0,0,0,0.4)" }}>VS</div>
+        {card.title ? <div style={{ position: "absolute", top: -W * 0.075, width: "100%", textAlign: "center", ...accentLine, fontSize: W * 0.05 }}>{card.title}</div> : null}
+      </div>
+    );
+  }
+
+  // steps: numbered nodes with icons, a connector line drawn from step to step as they are spoken.
+  const n = card.items.length;
+  const top = card.title ? h * 0.13 : 0;
+  const rowH = (h - top) / Math.max(n, 2);
+  const d = Math.min(W * 0.13, rowH * 0.7);
+  const lastOn = card.items.reduce((acc, it, k) => (l.start + frame / fps >= it.at ? k : acc), -1);
+  return (
+    <div style={{ position: "absolute", left: x, top: y, width: w, height: h, opacity: out }}>
+      {card.title ? <div style={{ ...title, fontSize: fitPx(card.title, w * 0.9, W * 0.07), textAlign: "center", width: "100%" }}>{card.title}</div> : null}
+      {card.items.slice(0, -1).map((it, k) => {
+        const nx = card.items[k + 1]!;
+        const pl = interpolate(l.start + frame / fps, [it.at + 0.15, Math.max(it.at + 0.3, nx.at)], [0, 1], { extrapolateLeft: "clamp", extrapolateRight: "clamp" });
+        return <div key={`ln${k}`} style={{ position: "absolute", left: w * 0.04 + d / 2 - 3, top: top + rowH * k + rowH / 2 + d / 2, width: 6, height: (rowH - d) * pl, borderRadius: 3, background: col.accent, opacity: 0.85 }} />;
+      })}
+      {card.items.map((it, k) => {
+        const p = appear(frame, fps, it.at, l.start);
+        const label = it.text;
+        const active = k === lastOn;
+        return (
+          <div key={k} style={{ position: "absolute", left: w * 0.04, top: top + rowH * k + rowH / 2 - d / 2, height: d, width: w * 0.92, display: "flex", alignItems: "center", gap: W * 0.04, opacity: p * (active || lastOn < 0 ? 1 : 0.62), transform: `translateX(${(1 - p) * -80}px) scale(${active ? 1 : 0.95})`, transformOrigin: "left center" }}>
+            <div style={badge(d, p)}>
+              <IconGlyph name={it.icon} size={d * 0.56} color={onAcc} draw={p} fallback={String(k + 1)} />
+            </div>
+            <div style={{ display: "flex", flexDirection: "column" }}>
+              <div style={{ ...accentLine, fontSize: d * 0.3, opacity: 0.95 }}>{`${k + 1}`.padStart(2, "0")}</div>
+              <div style={{ ...title, fontSize: fitPx(st.titleUppercase ? label.toUpperCase() : label, w * 0.88 - d - W * 0.04, d * 0.5, st.titleUppercase ? 0.76 : 0.62), textTransform: st.titleUppercase ? "uppercase" : "none" }}>{label}</div>
+            </div>
+          </div>
+        );
+      })}
+    </div>
+  );
+};
+
+/** Full-screen explainer: the speaker leaves (circular reveal), the voice continues over an animated scheme. */
+const LayoutOverlay: React.FC<{ l: Layout; sb: Storyboard; st: StyleDef }> = ({ l, sb, st }) => {
+  const frame = useCurrentFrame();
+  const t = l.start + frame / sb.fps;
+  const { p } = layoutStateAt([l], Math.min(t, l.end - 0.0001));
+  if (l.kind === "explainer") {
+    return (
+      <AbsoluteFill style={{ clipPath: `circle(${Math.max(0.01, p) * 101}% at 50% 42%)` }}>
+        <Graphic sb={sb} />
+        <AbsoluteFill style={{ backgroundImage: "linear-gradient(rgba(255,255,255,0.05) 1px, transparent 1px), linear-gradient(90deg, rgba(255,255,255,0.05) 1px, transparent 1px)", backgroundSize: "72px 72px" }} />
+        <AbsoluteFill style={{ background: "rgba(10,10,12,0.35)" }} />
+        {l.card ? <CardView card={l.card} l={l} sb={sb} st={st} /> : null}
+      </AbsoluteFill>
+    );
+  }
+  return l.card ? <AbsoluteFill style={{ opacity: Math.min(1, p * 1.4) }}><CardView card={l.card} l={l} sb={sb} st={st} /></AbsoluteFill> : null;
 };
 
 /** Badge with a line icon that draws itself, pops in and floats. */
@@ -153,7 +294,7 @@ const BehindTextLayer: React.FC<{ b: BehindText; sb: Storyboard; useMattes: bool
       <div
         style={{
           position: "absolute", left: 0, right: 0, top: b.y * sb.height - px * 0.55, textAlign: "center",
-          fontFamily: FONT_FAMILIES.montserrat, fontWeight: 900, fontSize: px, lineHeight: 1, letterSpacing: "-0.02em",
+          fontFamily: FONT_FAMILIES[resolveStyle(sb.style.preset, sb.style.overrides).titleFont], fontWeight: 900, fontSize: px, lineHeight: 1, letterSpacing: "-0.02em",
           color: sb.style.colors.text === "#141414" ? sb.style.colors.accent : "#FFFFFF",
           textShadow: "0 10px 40px rgba(0,0,0,0.35)",
           opacity: exit, transform: `translateY(${(1 - enter) * 40}px) scale(${0.9 + 0.1 * enter})`,
@@ -199,8 +340,8 @@ const CaptionBlock: React.FC<{ c: Caption; sb: Storyboard; st: StyleDef }> = ({ 
   const { fps } = useVideoConfig();
   const t = c.start + frame / fps;
   const col = sb.style.colors;
-  const band = captionBand(safeZone(sb.platform));
   const px = st.size * Math.min(sb.width, sb.height) * c.scale;
+  const band = captionBand(safeZone(sb.platform), c.y + (c.lines.length * px * st.lineHeight + px * 0.5) / sb.height);
   const dur = (c.end - c.start) * fps;
   const inP = spring({ frame, fps, config: { damping: 15, stiffness: 170 } });
   const outP = interpolate(frame, [dur - 5, dur], [1, 0], { extrapolateLeft: "clamp", extrapolateRight: "clamp" });
@@ -240,7 +381,8 @@ const CaptionBlock: React.FC<{ c: Caption; sb: Storyboard; st: StyleDef }> = ({ 
               const pop = spring({ frame: wf, fps, config: { damping: 13, stiffness: 220 } });
               const hidden = st.upcoming === "hidden" && !spoken;
               let color = st.upcoming === "dim" && !spoken ? col.upcoming : col.text;
-              const marker = w.emphasis && !accentAsText && !(active && st.active === "pill") && sb.style.preset !== "lime";
+              const marker = w.emphasis && !accentAsText && !(active && st.active === "pill") && sb.style.preset !== "lime" && sb.style.preset !== "editorial";
+              if (w.emphasis && sb.style.preset === "editorial") color = col.accent;
               if (w.emphasis && !(active && st.active === "pill") && accentAsText) color = sb.style.preset === "lime" ? col.text : col.accent;
               if (active && st.active === "color") color = col.accent;
               const pill = active && st.active === "pill";
@@ -249,7 +391,7 @@ const CaptionBlock: React.FC<{ c: Caption; sb: Storyboard; st: StyleDef }> = ({ 
                 <span
                   key={k}
                   style={{
-                    fontFamily: FONT_FAMILIES[st.font], fontWeight: st.weight, fontSize: px, lineHeight: st.lineHeight,
+                    fontFamily: FONT_FAMILIES[w.emphasis && sb.style.preset === "editorial" ? st.accentFont : st.font], fontStyle: w.emphasis && sb.style.preset === "editorial" && st.accentItalic ? "italic" : "normal", fontWeight: w.emphasis && sb.style.preset === "editorial" ? 700 : st.weight, fontSize: w.emphasis && sb.style.preset === "editorial" ? px * 1.18 : px, lineHeight: st.lineHeight,
                     letterSpacing: `${st.letterSpacing}em`, color: pill ? col.onAccent : color,
                     margin: `0 ${px * 0.12}px`, padding: pill ? `${px * 0.04}px ${px * 0.2}px` : `${px * 0.04}px 0`,
                     borderRadius: px * 0.22,
@@ -282,7 +424,7 @@ const CalloutBlock: React.FC<{ c: Callout; sb: Storyboard }> = ({ c, sb }) => {
     : { background: "#fff", color: "#141414" };
   return (
     <div style={{ position: "absolute", top: c.y * sb.height, width: "100%", display: "flex", justifyContent: "center", opacity: out }}>
-      <div style={{ ...style, fontFamily: FONT_FAMILIES.onest, fontWeight: 800, fontSize: px, padding: `${px * 0.45}px ${px * 0.9}px`, borderRadius: px, transform: `scale(${0.8 + 0.2 * p})` }}>{c.text}</div>
+      <div style={{ ...style, fontFamily: FONT_FAMILIES[resolveStyle(sb.style.preset, sb.style.overrides).titleFont], fontWeight: 800, fontSize: px, whiteSpace: "nowrap", padding: `${px * 0.45}px ${px * 0.9}px`, borderRadius: px, transform: `scale(${0.8 + 0.2 * p})` }}>{c.text}</div>
     </div>
   );
 };
@@ -319,6 +461,25 @@ const Guides: React.FC<{ sb: Storyboard; g: NonNullable<EditProps["guides"]> }> 
   );
 };
 
+// ---------------- audio ----------------
+
+/** Music envelope: ducked under speech (0.25 s ramps), fade-in 0.6 s, fade-out 1.2 s. */
+export function musicGain(sb: Storyboard, t: number): number {
+  const m = sb.music;
+  if (!m) return 0;
+  let d = Infinity;
+  for (const [a, b] of m.speech) {
+    if (t >= a && t <= b) {
+      d = 0;
+      break;
+    }
+    d = Math.min(d, t < a ? a - t : t - b);
+  }
+  const k = Math.min(1, Math.max(0, (d - 0.05) / 0.25));
+  const fade = Math.min(1, t / 0.6, Math.max(0, (sb.durationSec - t) / 1.2));
+  return (m.duck + (m.gain - m.duck) * k) * fade;
+}
+
 // ---------------- composition ----------------
 
 export const Edit: React.FC<EditProps> = ({ storyboard: sb, guides, useMattes }) => {
@@ -329,6 +490,11 @@ export const Edit: React.FC<EditProps> = ({ storyboard: sb, guides, useMattes })
       {sb.visuals.map((v) => (
         <Sequence key={v.id} from={f(v.start)} durationInFrames={Math.max(1, f(v.end) - f(v.start))} premountFor={15}>
           <VisualLayer v={v} sb={sb} />
+        </Sequence>
+      ))}
+      {sb.layouts.filter((l) => l.kind !== "full" && (l.card || l.kind === "explainer")).map((l) => (
+        <Sequence key={`ov-${l.id}`} from={f(l.start)} durationInFrames={Math.max(1, f(l.end) - f(l.start))}>
+          <LayoutOverlay l={l} sb={sb} st={st} />
         </Sequence>
       ))}
       {sb.behindText.map((b) => (
@@ -353,6 +519,7 @@ export const Edit: React.FC<EditProps> = ({ storyboard: sb, guides, useMattes })
       ))}
       {sb.progressBar ? <ProgressBar sb={sb} /> : null}
       <Audio src={staticFile(sb.voice.src)} volume={sb.voice.gain} />
+      {sb.music ? <Audio src={staticFile(sb.music.src)} loop loopVolumeCurveBehavior="extend" volume={(fr) => musicGain(sb, fr / sb.fps)} /> : null}
       {sb.sfx.map((s, i) => (
         <Sequence key={`sfx${i}`} from={f(s.t)} durationInFrames={f(1.2)}>
           <Audio src={staticFile(`work/sfx/${s.kind}.wav`)} volume={s.gain} />

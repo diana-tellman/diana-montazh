@@ -20,6 +20,7 @@
     "analyze": "tsx scripts/analyze.ts",
     "plan": "tsx scripts/plan.ts",
     "storyboard": "tsx scripts/storyboard.ts",
+    "animatic": "tsx scripts/animatic.ts",
     "approve": "tsx scripts/approve.ts",
     "render": "tsx scripts/render.ts",
     "cover": "tsx scripts/cover.ts",
@@ -31,7 +32,11 @@
     "bench": "tsx scripts/bench.ts"
   },
   "dependencies": {
+    "@fontsource/bad-script": "5.3.0",
+    "@fontsource/cormorant-garamond": "5.3.0",
+    "@fontsource/geologica": "5.3.0",
     "@fontsource/inter": "5.3.0",
+    "@fontsource/inter-tight": "5.3.0",
     "@fontsource/montserrat": "5.3.0",
     "@fontsource/nunito": "5.3.0",
     "@fontsource/onest": "5.3.1",

@@ -4,7 +4,11 @@
  *   [--position auto|top|middle|bottom] [--no-behind] [--no-sfx] [--no-progress] [--energy 0|1|2]
  *   [--layout auto|full|circle|split] [--no-icons]
  *   [--reference] [--no-reference] [--font modern-sans|neutral-sans|geometric-bold|serif|condensed|rounded|rounded-bold|elegant]
- *   [--size small|medium|large] [--upper|--lower]
+ *   [--size small|medium|large] [--upper|--lower] [--no-semantic] [--music <file>|--no-music]
+ *
+ * Meaning → layout: work/beats.json lists every phrase and the automatic decisions
+ * (example → window, compare → split, process → explainer, emotion → push-in, key → plate, cta → button).
+ * Claude reviews it and may write storyboard/directions.json (see src/plan/director.ts) — it wins over auto.
  *
  * Builds the edit plan (storyboard.json) from the transcript, face analysis and options.
  * Runs analysis/transcription automatically if they are missing. Any re-plan revokes approval.
@@ -26,6 +30,9 @@ import { validateStoryboard } from "../src/plan/validate";
 import { loadFaces, loadTranscript, revokeApproval, saveStoryboard, sbFile } from "../src/storyboard/store";
 import { FONT_CLASSES } from "../src/design/fontNames";
 import { referenceOptions, SIZE } from "../src/plan/reference";
+import { autoBeats, DirectionsSchema, type Directions } from "../src/plan/director";
+import { groupPhrases, parseEmphasis } from "../src/plan/phrases";
+import { resolveStyle } from "../src/design/styles";
 import { main, out, parseArgs, str } from "./_cli";
 
 const run = promisify(execFile);
@@ -59,6 +66,8 @@ main(async () => {
     cameraEnergy: str(opt.energy) ? (Number(opt.energy) as 0 | 1 | 2) : prev.cameraEnergy,
     layout: (str(opt.layout) as PlanOptions["layout"]) ?? prev.layout ?? "auto",
     icons: opt["no-icons"] ? false : opt.icons ? true : prev.icons ?? true,
+    semantic: opt["no-semantic"] ? false : opt.semantic ? true : prev.semantic ?? true,
+    music: opt["no-music"] ? null : prev.music ?? null,
     styleOverrides: { ...(prev.styleOverrides ?? {}), ...(str(opt.font) ? { font: FONT_CLASSES[str(opt.font)!] ?? (str(opt.font) as never) } : {}), ...(opt.upper ? { uppercase: true } : {}), ...(opt.lower ? { uppercase: false } : {}), ...(str(opt.size) ? { size: SIZE[str(opt.size)!] ?? Number(opt.size) } : {}) },
     colors: {
       ...(str(opt.style) ? {} : prev.colors),
@@ -81,6 +90,18 @@ main(async () => {
   }
   await ensureSfx(p.root);
 
+  // Background music: normalised once to −18 LUFS; the composition ducks it under every spoken phrase.
+  if (str(opt.music)) {
+    const src = str(opt.music)!;
+    if (!existsSync(src)) throw new Error(`Нет файла музыки: ${src}`);
+    await run("ffmpeg", ["-v", "error", "-y", "-i", src, "-vn", "-af", "loudnorm=I=-18:TP=-2:LRA=11", "-ar", "48000", "-ac", "2", "-c:a", "pcm_s16le", join(p.work, "music.wav")]);
+    o.music = "work/music.wav";
+  }
+
+  // Claude's meaning decisions (optional).
+  const dirFile = join(p.storyboard, "directions.json");
+  const directions: Directions | null = existsSync(dirFile) ? DirectionsSchema.parse(JSON.parse(readFileSync(dirFile, "utf8"))) : null;
+
   // Colour grade from the reference, baked into a graded proxy by ffmpeg.
   const graded: Record<string, string> = {};
   if (o.grade) {
@@ -98,7 +119,21 @@ main(async () => {
 
   const faces = loadFaces(id);
   const prevVersion = existsSync(sbFile(id)) ? Number((JSON.parse(readFileSync(sbFile(id), "utf8")) as { version?: number }).version ?? 0) : 0;
-  const sb = buildStoryboard({ project, transcript: loadTranscript(id), faces, fills, graded, options: o }, prevVersion + 1);
+  const transcript = loadTranscript(id);
+  const sb = buildStoryboard({ project, transcript, faces, fills, graded, options: o, directions }, prevVersion + 1);
+
+  // work/beats.json — phrases with times + automatic meaning decisions, for Claude to review.
+  const st = resolveStyle(o.style, o.styleOverrides);
+  const words = transcript.segments.flatMap((s) => s.words.map((w) => ({ ...parseEmphasis(w.text), start: w.startMs / 1000, end: w.endMs / 1000 })));
+  const phrases = groupPhrases(words, { maxWords: st.maxWordsPerPhrase, maxChars: st.maxCharsPerLine * 2 - 2, pause: 0.45, minDur: 0.6 });
+  const auto = autoBeats({ phrases, duration: sb.durationSec, hasPerson: project.mode === "expert-video" });
+  writeFileSync(join(p.work, "beats.json"), JSON.stringify({
+    note: "Автоматические решения по смыслу. Чтобы изменить — запишите storyboard/directions.json (формат: src/plan/director.ts DirectionsSchema) и перезапустите plan.",
+    phrases: phrases.map((ph, i) => ({ i, start: ph[0]!.start, end: ph.at(-1)!.end, text: ph.map((w) => w.text).join(" ") })),
+    auto: auto.map((b) => ({ start: phrases[b.p0]![0]!.start, end: phrases[b.p1]!.at(-1)!.end, intent: b.intent, reason: b.reason, items: b.card?.items.map((x) => x.text) ?? [], plate: b.plate ?? null })),
+    used: sb.beats ?? [],
+    directions: directions ? "storyboard/directions.json" : null,
+  }, null, 2));
   sb.checks = validateStoryboard(sb, faces, sb.checks);
   saveStoryboard(sb);
   writeFileSync(optFile, JSON.stringify(o, null, 2));
@@ -112,7 +147,8 @@ main(async () => {
   out({
     id, version: sb.version, format: sb.format, platform: sb.platform, style: sb.style.preset, styleSource: sb.style.source, overrides: sb.style.overrides, grade: sb.grade, durationSec: sb.durationSec,
     scenes: sb.scenes.length, captions: sb.captions.length, behindText: sb.behindText.map((b) => b.text), sfx: sb.sfx.length,
-    layouts: sb.layouts.map((l) => `${l.kind} ${l.start}-${l.end}`), icons: sb.icons.map((i) => `${i.name}:${i.word}`),
+    layouts: sb.layouts.map((l) => `${l.kind}${l.intent ? `(${l.intent})` : ""} ${l.start}-${l.end}${l.card ? ` [${l.card.items.map((x) => x.text).join(" | ")}]` : ""}`), icons: sb.icons.map((i) => `${i.name}:${i.word}`),
+    beats: (sb.beats ?? []).map((b) => `${b.start.toFixed(1)}-${b.end.toFixed(1)} ${b.intent} (${b.source})`), plates: sb.callouts.map((c) => `${c.kind}: ${c.text}`), music: sb.music ? sb.music.src : null, beatsFile: join(p.work, "beats.json"),
     approvalRevoked: revoked, errors: errors.length, warnings: sb.checks.length - errors.length,
     checks: sb.checks.map((c) => `${c.level.toUpperCase()}: ${c.message}`),
   });

@@ -1,5 +1,6 @@
 // Fonts are bundled from npm (@fontsource, SIL OFL 1.1) — no network at render time.
-// All families were verified to contain Kazakh letters Ә Ғ Қ Ң Ө Ұ Ү Һ І (Manrope does not).
+// All families were verified (font cmap) to contain Kazakh letters Ә Ғ Қ Ң Ө Ұ Ү Һ І.
+// Rejected for missing Kazakh letters: Manrope, Unbounded, Bebas Neue, Dela Gothic One, Great Vibes, Marck Script.
 import "@fontsource/onest/500.css";
 import "@fontsource/onest/700.css";
 import "@fontsource/onest/800.css";
@@ -24,6 +25,14 @@ import "@fontsource/raleway/800.css";
 import "@fontsource/nunito/700.css";
 import "@fontsource/nunito/800.css";
 import "@fontsource/nunito/900.css";
+import "@fontsource/inter-tight/700.css";
+import "@fontsource/inter-tight/800.css";
+import "@fontsource/inter-tight/900.css";
+import "@fontsource/geologica/600.css";
+import "@fontsource/geologica/800.css";
+import "@fontsource/cormorant-garamond/600.css";
+import "@fontsource/cormorant-garamond/700-italic.css";
+import "@fontsource/bad-script/400.css";
 import { continueRender, delayRender } from "remotion";
 
 export { FONT_FAMILIES, FONT_CLASSES, type FontId } from "./fontNames";
@@ -45,8 +54,14 @@ export function ensureFontsLoaded(): void {
     ["Rubik", [500, 700, 800]],
     ["Raleway", [500, 700, 800]],
     ["Nunito", [700, 800, 900]],
+    ["Inter Tight", [700, 800, 900]],
+    ["Geologica", [600, 800]],
+    ["Cormorant Garamond", [600]],
+    ["Bad Script", [400]],
   ] as const;
-  Promise.all(faces.flatMap(([fam, ws]) => ws.map((w) => document.fonts.load(`${w} 64px '${fam}'`, KZ))))
+  const loads = faces.flatMap(([fam, ws]) => ws.map((w) => document.fonts.load(`${w} 64px '${fam}'`, KZ)));
+  loads.push(document.fonts.load(`italic 700 64px 'Cormorant Garamond'`, KZ));
+  Promise.all(loads)
     .then(() => document.fonts.ready)
     .then(() => continueRender(handle))
     .catch(() => continueRender(handle));

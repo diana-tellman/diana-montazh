@@ -1,9 +1,9 @@
 {
-  "_comment": "Normalised safe rectangles (0..1 of the frame) where text/logos/CTA may go. Platform UI overlays differ by device and app version — values are conservative and editable. x1/y1 are right/bottom edges.",
-  "reels":   { "format": "9:16", "label": "Instagram Reels",  "x0": 0.065, "x1": 0.86,  "y0": 0.115, "y1": 0.77 },
+  "_comment": "Normalised safe rectangles (0..1 of the frame) where text/logos/CTA may go. Platform UI overlays differ by device and app version — values are conservative and editable. x1/y1 are right/bottom edges. lowRight: below y the right edge is x1 (like/comment/share buttons column).",
+  "reels":   { "format": "9:16", "label": "Instagram Reels",  "x0": 0.065, "x1": 0.86,  "y0": 0.115, "y1": 0.77, "lowRight": { "y": 0.62, "x1": 0.82 } },
   "stories": { "format": "9:16", "label": "Instagram Stories", "x0": 0.06,  "x1": 0.94,  "y0": 0.11,  "y1": 0.82 },
-  "shorts":  { "format": "9:16", "label": "YouTube Shorts",    "x0": 0.06,  "x1": 0.85,  "y0": 0.09,  "y1": 0.75 },
-  "tiktok":  { "format": "9:16", "label": "TikTok",            "x0": 0.06,  "x1": 0.85,  "y0": 0.09,  "y1": 0.73 },
+  "shorts":  { "format": "9:16", "label": "YouTube Shorts",    "x0": 0.06,  "x1": 0.85,  "y0": 0.09,  "y1": 0.75, "lowRight": { "y": 0.6, "x1": 0.82 } },
+  "tiktok":  { "format": "9:16", "label": "TikTok",            "x0": 0.06,  "x1": 0.85,  "y0": 0.09,  "y1": 0.73, "lowRight": { "y": 0.55, "x1": 0.82 } },
   "feed":    { "format": "4:5",  "label": "Instagram Feed",    "x0": 0.06,  "x1": 0.94,  "y0": 0.06,  "y1": 0.94 },
   "square":  { "format": "1:1",  "label": "Square",            "x0": 0.06,  "x1": 0.94,  "y0": 0.06,  "y1": 0.94 },
   "youtube": { "format": "16:9", "label": "YouTube",           "x0": 0.05,  "x1": 0.95,  "y0": 0.07,  "y1": 0.90 }
