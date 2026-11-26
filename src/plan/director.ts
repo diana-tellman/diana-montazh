@@ -39,11 +39,13 @@ export const DirectionsSchema = z.object({
     z.object({
       start: z.number().nonnegative(),
       end: z.number().positive(),
-      intent: z.enum(["emotion", "example", "compare", "process", "key", "cta", "question", "neutral"]),
+      intent: z.enum(["emotion", "example", "compare", "process", "list", "number", "key", "cta", "question", "neutral"]),
       reason: z.string().default(""),
       title: z.string().optional(),
       /** Example keyword / two compared things / 2–4 steps — short (≤ 3 words each), the speaker's own words. */
-      items: z.array(z.string()).max(5).optional(),
+      items: z.array(z.string()).max(6).optional(),
+      /** Force a card look: flow (nodes + curves), orbit (centre + satellites), headline, counter… */
+      variant: z.enum(["example", "compare", "steps", "flow", "orbit", "counter", "headline"]).optional(),
       shape: z.enum(["rounded", "circle"]).optional(),
       /** Plate text for key / cta. */
       plate: z.string().optional(),
@@ -57,6 +59,11 @@ const clean = (w: string) => w.toLowerCase().replace(/ё/g, "е").replace(/[^\p{
 
 /** Marker stems (prefix match on a word) and phrases (substring match). */
 const LEX: Record<Exclude<Intent, "question" | "neutral">, { stems: string[]; phrases: string[] }> = {
+  list: {
+    stems: ["түрлі", "әртүрлі", "тізім", "различн", "разные", "разных", "список", "various", "list", "types"],
+    phrases: ["әр түрлі", "және тағы", "и многое другое", "and more"],
+  },
+  number: { stems: [], phrases: [] },
   cta: {
     stems: ["жазылыңыз", "жазылып", "жазыл", "пікір", "коммент", "сілтеме", "подпиш", "подписыв", "сохран", "поделит", "ссылк", "subscrib", "follow", "comment", "share"],
     phrases: ["сақтап ал", "сақтап қой", "бөлісіңіз", "досыңа жібер", "link in bio", "save this", "в профиле", "профильде"],
@@ -87,7 +94,7 @@ const LEX: Record<Exclude<Intent, "question" | "neutral">, { stems: string[]; ph
 const STOP = new Set(
   (
     "және мен да де та те бен пен ал бірақ немесе егер сосын содан кейін одан алдымен біріншіден екіншіден үшіншіден соңында ақырында мысалы мысалға мысал айталық мәселен " +
-    "бастысы басты маңыздысы бұл осы сол ол біз сіз сен мен менің сенің оның бар жоқ емес керек болады болып еді деп деген үшін қалай не неге қандай қазір бұрын тек енді өте ең " +
+    "онда мұнда сонда осында бастысы басты маңыздысы бұл осы сол ол біз сіз сен мен менің сенің оның бар жоқ емес керек болады болып еді деп деген үшін қалай не неге қандай қазір бұрын тек енді өте ең " +
     "главное важно и а но или если потом затем сначала далее во-первых во-вторых в-третьих например допустим это этот эта то тот как что чтобы для на в во с со к по из у о об же ли бы не нужно надо очень вот там тут сейчас раньше " +
     "and or but if then next first second finally for example the a an to of in on with is are was it this that you we i so just very now before after than vs versus instead"
   ).split(" "),
@@ -103,7 +110,9 @@ function matches(text: string, intent: keyof typeof LEX): string | null {
 
 /** Meaning of one phrase (priority order matters). */
 export function classifyPhrase(text: string): { intent: Intent; marker: string | null } {
-  for (const intent of ["cta", "process", "compare", "example", "key", "emotion"] as const) {
+  for (const intent of ["cta", "process", "compare", "example", "list", "number", "key", "emotion"] as const) {
+    if (intent === "list" && (text.match(/,/g) ?? []).length >= 2 && text.split(/\s+/).length >= 4) return { intent, marker: "," };
+    if (intent === "number" && /\d/.test(text) && !/^\s*\d+[.)]\s/.test(text)) return { intent, marker: text.match(/\d[\d\s%]*/)![0].trim() };
     const m = matches(text, intent);
     if (m) {
       // "X емес" alone is a plain negation; compare needs "X емес, Y" with words after the comma.
@@ -127,6 +136,52 @@ export function contentLabel(ws: TWord[], n = 3, keepMarkers = false): { text: s
   pick.sort((a, b) => a.start - b.start);
   const text = pick.map((w) => w.text.replace(/^[«"(*]+|[»".,!?:;)*…]+$/gu, "")).join(" ");
   return { text, at: pick[0]!.start };
+}
+
+/** "3 000 подписчиков" → { value: 3000, prefix: "", suffix: "подписчиков" }; "60%" → { value: 60, suffix: "%" }. */
+export function parseNumber(ws: TWord[]): { value: number; suffix: string; at: number; label: string } | null {
+  for (let i = 0; i < ws.length; i++) {
+    if (!/\d/.test(ws[i]!.text)) continue;
+    let j = i;
+    let digits = ws[i]!.text.replace(/[^\d%,.]/g, "");
+    while (j + 1 < ws.length && /^\d{3}[.,!?]?$/.test(ws[j + 1]!.text)) digits += ws[++j]!.text.replace(/\D/g, "");
+    const pct = digits.includes("%") || /^(пайыз|процент|percent)/i.test(ws[j + 1]?.text ?? "");
+    const value = Number(digits.replace(/[^\d.,]/g, "").replace(",", "."));
+    if (!Number.isFinite(value)) continue;
+    const unit = pct ? "%" : (ws[j + 1]?.text ?? "").replace(/[.,!?:;»"]+$/u, "");
+    const label = ws.slice(0, i).map((w) => w.text).join(" ").replace(/[.,!?:;]+$/u, "");
+    return { value, suffix: unit, at: ws[i]!.start, label };
+  }
+  return null;
+}
+
+/** Listing → items between commas / "және" (1–2 content words each). */
+export function splitList(ws: TWord[]): Array<{ text: string; at: number }> {
+  const parts: TWord[][] = [[]];
+  for (const w of ws) {
+    const k = clean(w.text);
+    if (["және", "и", "and", "немесе", "или", "or"].includes(k)) {
+      if (parts.at(-1)!.length) parts.push([]);
+      continue;
+    }
+    parts.at(-1)!.push(w);
+    if (/[,;]$/.test(w.text)) parts.push([]);
+  }
+  return parts.filter((p) => p.length).map((p) => contentLabel(p.slice(-2), 2)).filter((x): x is { text: string; at: number } => !!x).slice(0, 6);
+}
+
+/** Headline card from one phrase: small label / BIG keyword / script tail (reference poster typography). */
+export function headlineCard(ws: TWord[]): Card | null {
+  const content = ws.filter((w) => { const k = clean(w.text); return k.length >= 3 && !STOP.has(k); });
+  if (!content.length) return null;
+  // Prefer the speaker's *emphasis*, then nouns/numbers over verb forms (kk/ru/en verb endings), then the longest word.
+  const verb = (t: string) => /(мын|мін|быз|біз|сың|сің|сыз|сіз|ды|ді|ты|ті|ған|ген|қан|кен|йды|йді|йсың|йсің|ады|еді|ть|ешь|ете|ем|ют|ут|ит|ал|ла|ли|ing|ed)$/u.test(clean(t));
+  const key = content.find((w) => w.emphasis) ?? [...content].sort((a, b) => Number(verb(a.text)) - Number(verb(b.text)) || b.text.length - a.text.length)[0]!;
+  const i = ws.indexOf(key);
+  const strip = (t: string) => t.replace(/^[«"(*]+|[»".,!?:;)*…—-]+$/gu, "");
+  const before = ws.slice(Math.max(0, i - 4), i).map((w) => strip(w.text)).join(" ");
+  const after = ws.slice(i + 1, i + 4).map((w) => strip(w.text)).join(" ");
+  return { variant: "headline", title: "", label: before || undefined, script: after || undefined, items: [{ text: strip(key.text), icon: iconFor(ws.map((w) => w.text).join(" ")), at: key.start }] };
 }
 
 const iconFor = (text: string) => text.split(/\s+/).map(iconForWord).find(Boolean) ?? null;
@@ -204,9 +259,10 @@ export function autoBeats({ phrases, duration, hasPerson }: DirectorInput): Dire
   for (let i = 0; i < phrases.length; i++) {
     const c = cls[i]!;
     const s = pStart(phrases[i]!);
-    const layoutIntent = c.intent === "example" || c.intent === "compare" || c.intent === "process";
+    const layoutIntent = c.intent === "example" || c.intent === "compare" || c.intent === "process" || c.intent === "list";
     if (layoutIntent) {
-      if (s < 1.2 || s - lastLayoutEnd < 2 || s > duration - 1.5) continue;
+      // Pacing rules protect the speaker's face time; without a speaker every moment may be a scheme.
+      if (hasPerson && (s < 1.2 || s - lastLayoutEnd < 2 || s > duration - 1.5)) continue;
       // Extend over following phrases: at least ~2.4 s on screen; a process takes its steps (≤ 4 phrases, ≤ 9 s).
       let j = c.intent === "compare" && /[,—–:-]\s*$/.test(txt[i]!) ? Math.min(i + 1, phrases.length - 1) : i;
       const maxDur = c.intent === "process" ? 9 : 6.5;
@@ -219,13 +275,18 @@ export function autoBeats({ phrases, duration, hasPerson }: DirectorInput): Dire
         else break;
       }
       const dur = pEnd(phrases[j]!) - s;
-      if (dur < 1.6 || (layoutTime + dur) / duration > 0.5) continue;
+      if (dur < 1.6 || (hasPerson && (layoutTime + dur) / duration > 0.5)) continue;
       const span = phrases.slice(i, j + 1);
       let card: Card | null = null;
       if (c.intent === "process") {
         const steps = extractSteps(span);
         if (steps.length < 2) continue;
-        card = { variant: "steps", title: "", items: steps.map((x) => ({ text: x.text, icon: iconFor(x.text), at: x.at })) };
+        // Without a speaker: ≤ 3 steps read better as a flow of nodes joined by curves.
+        card = { variant: !hasPerson && steps.length <= 3 ? "flow" : "steps", title: "", items: steps.map((x) => ({ text: x.text, icon: iconFor(x.text), at: x.at })) };
+      } else if (c.intent === "list") {
+        const items = splitList(span.flat());
+        if (items.length < 3) continue;
+        card = { variant: "orbit", title: "", items: items.map((x) => ({ text: x.text, icon: iconFor(x.text), at: x.at })) };
       } else if (c.intent === "compare") {
         const ab = splitCompare(span.flat());
         if (ab.length >= 2 && ab[0]!.text.toLowerCase() === ab[1]!.text.toLowerCase()) continue;
@@ -237,11 +298,16 @@ export function autoBeats({ phrases, duration, hasPerson }: DirectorInput): Dire
         if (!l) continue;
         card = { variant: "example", title: "", items: [{ text: l.text, icon: iconFor(l.text), at: l.at }] };
       }
-      const label = c.intent === "process" ? "процесс → спикер уақытша кадрдан шығады, толық экранды түсіндірме анимация" : c.intent === "compare" ? "салыстыру → экран екіге бөлінеді" : "мысал → спикер терезеге, мысал экранда";
+      const label = c.intent === "process" ? "процесс → спикер уақытша кадрдан шығады, толық экранды түсіндірме анимация" : c.intent === "compare" ? "салыстыру → экран екіге бөлінеді" : c.intent === "list" ? "тізім → орталық иконка мен айналасындағы элементтер (орбита)" : "мысал → спикер терезеге, мысал экранда";
       beats.push({ p0: i, p1: j, intent: hasPerson ? c.intent : c.intent, reason: `«${c.marker}» — ${label}`, card, shape: c.intent === "example" ? (shapeToggle++ % 2 ? "circle" : "rounded") : undefined, source: "auto" });
       layoutTime += dur;
       lastLayoutEnd = pEnd(phrases[j]!);
       i = j;
+      continue;
+    }
+    if (c.intent === "number") {
+      const n = parseNumber(withNext(i));
+      if (n) beats.push({ p0: i, p1: i, intent: "number", reason: `«${c.marker}» — сан → үлкен санағыш (0 → ${n.value})`, card: { variant: "counter", title: "", label: n.label || undefined, value: n.value, suffix: n.suffix, items: [{ text: `${n.value}`, icon: null, at: n.at }] }, source: "auto" });
       continue;
     }
     if (c.intent === "emotion" && s >= 0.3) beats.push({ p0: i, p1: i, intent: "emotion", reason: `«${c.marker}» — эмоция → толық кадр, бетке жақындау`, card: null, source: "auto" });
@@ -277,11 +343,19 @@ export function directionsToBeats(d: Directions, phrases: TWord[][]): DirectorBe
       return hit ? hit.start : s + ((e - s) * k) / Math.max(1, n);
     };
     let card: Card | null = null;
+    if (b.intent === "number") {
+      const n = parseNumber(ws);
+      if (n) card = { variant: "counter", title: b.title ?? "", label: n.label || undefined, value: n.value, suffix: n.suffix, items: [{ text: `${n.value}`, icon: null, at: n.at }] };
+    }
+    if (b.intent === "list") {
+      const items = b.items?.length ? b.items.map((t, k, arr) => ({ text: t, at: at(t, k, arr.length) })) : splitList(ws);
+      card = { variant: "orbit", title: b.title ?? "", items: items.slice(0, 6).map((x) => ({ text: x.text, icon: iconFor(x.text), at: Math.max(s, x.at) })) };
+    }
     if (b.intent === "example" || b.intent === "compare" || b.intent === "process") {
       const items = b.items?.length
         ? b.items.map((t, k, arr) => ({ text: t, at: at(t, k, arr.length) }))
         : b.intent === "process" ? extractSteps(phrases.slice(p0, p1 + 1)) : b.intent === "compare" ? splitCompare(ws) : [contentLabel(ws, 3)].filter((x): x is { text: string; at: number } => !!x);
-      card = { variant: b.intent === "process" ? "steps" : b.intent, title: b.title ?? "", items: items.slice(0, b.intent === "compare" ? 2 : 4).map((x) => ({ text: x.text, icon: iconFor(x.text), at: Math.max(s, x.at) })) };
+      card = { variant: b.variant && b.variant !== "counter" && b.variant !== "headline" ? b.variant : b.intent === "process" ? "steps" : b.intent, title: b.title ?? "", items: items.slice(0, b.intent === "compare" ? 2 : 4).map((x) => ({ text: x.text, icon: iconFor(x.text), at: Math.max(s, x.at) })) };
     }
     out.push({ p0, p1, intent: b.intent, reason: b.reason || "Claude: мағынасы бойынша", card, shape: b.shape, plate: b.plate ?? (b.intent === "key" || b.intent === "cta" ? contentLabel(ws, 4)?.text : undefined), source: "claude" });
   }

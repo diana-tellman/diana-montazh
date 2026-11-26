@@ -138,3 +138,23 @@ describe("music ducking", () => {
     expect(spans[0]![0]).toBe(0);
   });
 });
+
+import { headlineCard, parseNumber, splitList } from "../src/plan/director";
+
+describe("reference techniques: numbers, lists, headlines", () => {
+  it("numbers with units and thousands", () => {
+    expect(parseNumber(ws("Instagram парақшамда 3 000 жазылушы", 1))).toMatchObject({ value: 3000, suffix: "жазылушы" });
+    expect(parseNumber(ws("10 минутта жасадым", 1))).toMatchObject({ value: 10, suffix: "минутта" });
+    expect(parseNumber(ws("нәтиже 87% жақсы", 1))).toMatchObject({ value: 87, suffix: "%" });
+    expect(classifyPhrase("Мен бұл видеоны 10 минутта жасадым").intent).toBe("number");
+  });
+  it("a listing becomes orbit items", () => {
+    expect(classifyPhrase("Онда субтитр, иконкалар, анимациялар бар").intent).toBe("list");
+    expect(splitList(ws("Онда субтитр, иконкалар, анимациялар бар", 1)).map((x) => x.text)).toEqual(["субтитр", "иконкалар", "анимациялар"]);
+  });
+  it("headline keyword prefers nouns over verb forms", () => {
+    const c = headlineCard(ws("Соңында дайын видео аласың", 1))!;
+    expect(c.items[0]!.text).not.toBe("аласың");
+    expect(c.variant).toBe("headline");
+  });
+});

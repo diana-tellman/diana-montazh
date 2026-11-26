@@ -17,6 +17,9 @@ export const SFX_RECIPES: Record<string, string> = {
   riser: "aevalsrc='0.5*sin(2*PI*(180*t+500*t*t))*(t/1.0)':s=48000:d=1.0,afade=t=out:st=0.85:d=0.15",
   swipe: "anoisesrc=d=0.32:color=white:a=0.7:r=48000,highpass=f=2500,lowpass=f=9000,afade=t=in:d=0.12,afade=t=out:st=0.12:d=0.2",
   click: "aevalsrc='0.9*sin(2*PI*1800*t)*exp(-t*160)+0.4*sin(2*PI*900*t)*exp(-t*120)':s=48000:d=0.06",
+  type: "aevalsrc='0.7*sin(2*PI*2600*mod(t,0.085))*exp(-mod(t,0.085)*260)*(0.6+0.4*sin(t*53))':s=48000:d=0.6,afade=t=out:st=0.5:d=0.1",
+  ding: "aevalsrc='0.5*sin(2*PI*1318*t)*exp(-t*6)+0.35*sin(2*PI*1975*t)*exp(-t*8)':s=48000:d=0.7",
+  tickroll: "aevalsrc='0.6*sin(2*PI*3000*mod(t,0.06))*exp(-mod(t,0.06)*300)*(1-t/0.8)':s=48000:d=0.8",
   impact: "aevalsrc='0.9*sin(2*PI*(70*t-40*t*t))*exp(-t*7)+0.25*(random(0)-0.5)*exp(-t*25)':s=48000:d=0.6",
 };
 

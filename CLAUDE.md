@@ -25,6 +25,7 @@ ANALYSIS → STORYBOARD → APPROVAL → RENDER → COVER → QUALITY CONTROL �
 - Кадр решает смысл речи: эмоция → весь кадр + наезд; пример → спикер в окне; сравнение → экран на два; процесс → спикер уходит, полноэкранная схема под голос; главная мысль → плашка; призыв → кнопка.
 - Автоматика (`src/plan/director.ts`) ищет маркеры kk/ru/en; Claude обязан проверить `work/beats.json` по смыслу. Подписи карточек — только слова спикера.
 - Каждый элемент и звук появляется в момент произнесения своего слова. Музыка всегда ниже голоса (дакинг).
+- Только аудио → каждое предложение получает карточку (полноценное объясняющее видео). Эксперт в кадре → постеры, плашки, стеклянные виджеты, схемы, субтитры 1–3 слова.
 
 ## Голос
 - Только собственный голос пользователя (речь из его видео или запись MP3/M4A/WAV). **Никакого TTS, синтеза, клонирования, замены.**
@@ -50,7 +51,7 @@ ANALYSIS → STORYBOARD → APPROVAL → RENDER → COVER → QUALITY CONTROL �
 | зависимости | SessionStart-хук ставит сам; иначе `npm ci`. Всё заранее (Python-среда, модели): `npm run setup` (его вызывает скрипт облачной среды `setup/cloud-environment.sh`) |
 | файл по ссылке | `npm run fetch -- <url>` |
 | проект | `npm run new -- --name <имя> --lang kk|ru|en [--script <txt>] [--voice <файл>] <файлы…>` (код 3 = задать вопрос) |
-| план | `npm run plan -- <id> [--style …] [--text …] [--accent …] [--format …] [--platform …] [--position …] [--no-behind] [--no-sfx] [--no-progress] [--energy 0-2] [--layout auto|full|circle|split] [--no-icons] [--no-semantic] [--music <файл>|--no-music]` (стили: brand, minimal, kinetic, glass, lime, editorial) (сам вызовет transcribe и analyze) |
+| план | `npm run plan -- <id> [--style …] [--text …] [--accent …] [--format …] [--platform …] [--position …] [--no-behind] [--no-sfx] [--no-progress] [--energy 0-2] [--layout auto|full|circle|split] [--no-icons] [--no-semantic] [--music <файл>|--no-music]` (стили: brand, minimal, kinetic, glass, lime, editorial, bordeaux; `--accent2` — второй акцент) (сам вызовет transcribe и analyze) |
 | референс | `npm run reference -- <id> <образец.mp4>` → посмотреть `work/reference/frames.jpg`, заполнить `storyboard/reference-style.json` → `npm run plan -- <id> --reference [--font …] [--size …] [--upper|--lower]` (skill reference-match; слова пользователя важнее референса) |
 | смысл → кадр | прочитать `work/beats.json`; при необходимости `storyboard/directions.json` → снова `plan` (skill editorial-motion) |
 | сториборд | `npm run storyboard -- <id>` → отправить `contact-sheet.jpg` и `storyboard.html` |

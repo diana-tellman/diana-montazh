@@ -4,7 +4,7 @@ import { FONT_FAMILIES, type FontId } from "./fontNames";
 /** Brand palette (default). User colours override it via the storyboard `style.colors`. */
 export const BRAND = { graphite: "#141414", burgundy: "#6B1732", softWhite: "#F7F5F2", white: "#FFFFFF" } as const;
 
-export const StylePresetSchema = z.enum(["brand", "minimal", "kinetic", "glass", "lime", "editorial"]);
+export const StylePresetSchema = z.enum(["brand", "minimal", "kinetic", "glass", "lime", "editorial", "bordeaux"]);
 export type StylePreset = z.infer<typeof StylePresetSchema>;
 
 export const ColorsSchema = z.object({
@@ -16,6 +16,8 @@ export const ColorsSchema = z.object({
   onAccent: z.string(),
   /** Spoken-not-yet words (dimmed) — or same as text. */
   upcoming: z.string(),
+  /** Second accent (script lines, underline of the active word, glows). Defaults to accent. */
+  accent2: z.string().optional(),
 });
 export type Colors = z.infer<typeof ColorsSchema>;
 
@@ -47,6 +49,10 @@ export type StyleDef = {
   titleUppercase: boolean;
   accentFont: FontId;
   accentItalic: boolean;
+  /** Preferred caption top (0..1 of height) — e.g. chest level 0.6 like premium Reels. null = as low as possible. */
+  preferY?: number | null;
+  /** Explainer background: dark (black + glows) or light (milk + accent details). */
+  panel?: "dark" | "light";
 };
 
 export const STYLES: Record<StylePreset, StyleDef> = {
@@ -98,6 +104,14 @@ export const STYLES: Record<StylePreset, StyleDef> = {
     active: "color", upcoming: "dim", backdrop: "shadow", enter: "rise", maxWordsPerPhrase: 4, maxCharsPerLine: 20, emphasisScale: 1.08,
     titleFont: "intertight", titleWeight: 900, titleUppercase: true, accentFont: "cormorant", accentItalic: true,
   },
+  bordeaux: {
+    label: "Bordeaux",
+    description: "Бордо / қызғылт / қара / ақ: 1–3 сөзден субтитр, белсенді сөздің астында қызғылт сызық, үлкен тар бордо тақырыптар, жазу қолтаңбасы, шыны виджеттер.",
+    font: "onest", weight: 800, uppercase: false, size: 0.05, lineHeight: 1.06, letterSpacing: -0.015,
+    colors: { text: "#FFFFFF", accent: "#9B1C40", onAccent: "#FFFFFF", upcoming: "rgba(255,255,255,0.5)", accent2: "#F4A6C0" },
+    active: "underline", upcoming: "dim", backdrop: "shadow", enter: "rise", maxWordsPerPhrase: 3, maxCharsPerLine: 18, emphasisScale: 1.06,
+    titleFont: "oswald", titleWeight: 700, titleUppercase: true, accentFont: "badscript", accentItalic: false, preferY: 0.6, panel: "dark",
+  },
 };
 
 /** WCAG relative luminance contrast ratio of two hex colours. */
@@ -119,7 +133,7 @@ export const NAMED_COLORS: Record<string, string> = {
   yellow: "#FFD60A", "сары": "#FFD60A", "жёлтый": "#FFD60A", "желтый": "#FFD60A",
   gold: "#E6B43C", "алтын": "#E6B43C", "золотой": "#E6B43C",
   burgundy: "#6B1732", "бордо": "#6B1732", "бордовый": "#6B1732",
-  pink: "#FF5C8A", "қызғылт": "#FF5C8A", "розовый": "#FF5C8A",
+  pink: "#F4A6C0", "қызғылт": "#F4A6C0", "розовый": "#F4A6C0", "bordeaux": "#8D1B3D",
   blue: "#3EC5FF", "көк": "#3EC5FF", "синий": "#2D6BFF", "голубой": "#3EC5FF",
   green: "#2ECC71", "жасыл": "#2ECC71", "зелёный": "#2ECC71", "зеленый": "#2ECC71",
   lime: "#C8FF2E", "лайм": "#C8FF2E", "orange": "#FF8A00", "қызғылт сары": "#FF8A00", "оранжевый": "#FF8A00",
@@ -157,6 +171,8 @@ export const StyleOverridesSchema = z
     titleUppercase: z.boolean(),
     accentFont: z.enum(Object.keys(FONT_FAMILIES) as [FontId, ...FontId[]]),
     accentItalic: z.boolean(),
+    preferY: z.number().min(0.1).max(0.8).nullable(),
+    panel: z.enum(["dark", "light"]),
   })
   .partial();
 export type StyleOverrides = z.infer<typeof StyleOverridesSchema>;

@@ -58,6 +58,36 @@ export const BehindTextSchema = z.object({
   size: z.number(),
   /** Folder (project-relative) of RGBA person cut-out frames; filled at render time. */
   matteDir: z.string().nullable(),
+  /** Poster extras (reference style «давай посмотрим, какие / ЭФФЕКТЫ / может создать / [Claude]»). */
+  label: z.string().optional(),
+  script: z.string().optional(),
+  tag: z.string().optional(),
+  /** Count-up of a number in the big line (e.g. 0 → 3000). */
+  count: z.object({ from: z.number(), to: z.number(), prefix: z.string(), suffix: z.string() }).optional(),
+  /** true = in front of the person (no cut-out), e.g. when there is no room above the head. */
+  front: z.boolean().optional(),
+  /** Times the parts appear (seconds); default = start. */
+  labelAt: Sec.optional(),
+  scriptAt: Sec.optional(),
+  /** Top of the script line (normalised) — under the chin. */
+  scriptY: z.number().optional(),
+});
+
+/** Glass UI widget next to the speaker (reference: iOS-like cards appear exactly on the spoken word). */
+export const WidgetSchema = z.object({
+  id: z.string(),
+  start: Sec,
+  end: Sec,
+  kind: z.enum(["counter", "ring", "search", "notify", "toggle", "timer", "comment"]),
+  /** Centre, normalised; width as fraction of frame width. */
+  x: z.number(),
+  y: z.number(),
+  w: z.number(),
+  /** Caption of the widget / typed text / notification text. */
+  text: z.string(),
+  /** Number for counter / ring (percent) / timer (seconds). */
+  value: z.number().optional(),
+  word: z.string(),
 });
 
 export const CalloutSchema = z.object({
@@ -70,15 +100,22 @@ export const CalloutSchema = z.object({
 });
 
 /** Meaning of a moment in the speech → how the frame is built (see src/plan/director.ts). */
-export const IntentSchema = z.enum(["emotion", "example", "compare", "process", "key", "cta", "question", "neutral"]);
+export const IntentSchema = z.enum(["emotion", "example", "compare", "process", "list", "number", "key", "cta", "question", "neutral"]);
 
 /** Graphic card shown in a layout: example keyword, A-vs-B comparison or process steps. */
 export const CardSchema = z.object({
-  variant: z.enum(["example", "compare", "steps"]),
+  /** example = keyword + icon; compare = A | VS | B; steps = numbered list; flow = nodes joined by curves;
+   *  orbit = centre + satellites (listing); counter = big number counting up; headline = label / BIG / script (+ icon). */
+  variant: z.enum(["example", "compare", "steps", "flow", "orbit", "counter", "headline"]),
   /** Small line above the card (optional). */
   title: z.string(),
   /** Each item appears exactly when its word is spoken (`at`, seconds). */
-  items: z.array(z.object({ text: z.string(), icon: z.string().nullable(), at: Sec })).max(5),
+  items: z.array(z.object({ text: z.string(), icon: z.string().nullable(), at: Sec })).max(6),
+  /** headline: small line above / script line below; counter: number. */
+  label: z.string().optional(),
+  script: z.string().optional(),
+  value: z.number().optional(),
+  suffix: z.string().optional(),
 });
 
 /** Screen layout over a time range. Default (no entry) = full frame. */
@@ -118,7 +155,7 @@ export const IconSchema = z.object({
 
 export const SfxSchema = z.object({
   t: Sec,
-  kind: z.enum(["pop", "whoosh", "tick", "soft", "riser", "swipe", "click", "impact"]),
+  kind: z.enum(["pop", "whoosh", "tick", "soft", "riser", "swipe", "click", "impact", "type", "ding", "tickroll"]),
   /** Linear gain (0..1) — kept well under the voice. */
   gain: z.number().min(0).max(1),
   reason: z.string(),
@@ -173,6 +210,7 @@ export const StoryboardSchema = z.object({
   layouts: z.array(LayoutSchema),
   icons: z.array(IconSchema),
   sfx: z.array(SfxSchema),
+  widgets: z.array(WidgetSchema).optional(),
   /** Background music, ducked under the voice (never louder than speech). null = none (or already in the video). */
   music: z
     .object({
@@ -204,6 +242,7 @@ export type Sfx = z.infer<typeof SfxSchema>;
 export type Layout = z.infer<typeof LayoutSchema>;
 export type Icon = z.infer<typeof IconSchema>;
 export type Intent = z.infer<typeof IntentSchema>;
+export type Widget = z.infer<typeof WidgetSchema>;
 export type Card = z.infer<typeof CardSchema>;
 export type Check = z.infer<typeof CheckSchema>;
 export type Scene = z.infer<typeof SceneSchema>;

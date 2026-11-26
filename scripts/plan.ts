@@ -74,6 +74,7 @@ main(async () => {
       ...(str(opt.text) ? { text: resolveColor(str(opt.text)!) } : {}),
       ...(str(opt.accent) ? { accent: resolveColor(str(opt.accent)!) } : {}),
       ...(str(opt["on-accent"]) ? { onAccent: resolveColor(str(opt["on-accent"])!) } : {}),
+      ...(str(opt.accent2) ? { accent2: resolveColor(str(opt.accent2)!) } : {}),
     },
   };
   if (!FORMATS[o.format]) throw new Error(`Неизвестный формат ${o.format}`);

@@ -8,9 +8,9 @@ import { captionBand, insideSafe, overlaps, safeZone, type Platform, type Rect }
 import type { Transcript } from "../speech/transcript";
 import type { BehindText, Callout, CameraKey, Caption, Check, Scene, Sfx, Storyboard, Visual } from "../storyboard/schema";
 import { cameraAt, layoutAt } from "../storyboard/schema";
-import type { Icon, Layout } from "../storyboard/schema";
+import type { Icon, Layout, Widget } from "../storyboard/schema";
 import { cardRect, clipToBox, personAt } from "../layout/person";
-import { autoBeats, directionsToBeats, mergeBeats, type DirectorBeat, type Directions } from "./director";
+import { autoBeats, directionsToBeats, headlineCard, mergeBeats, parseNumber, type DirectorBeat, type Directions } from "./director";
 import { iconForWord } from "../design/icons";
 import { groupPhrases, parseEmphasis, splitLines, type TWord } from "./phrases";
 
@@ -248,14 +248,39 @@ export function buildStoryboard(inp: PlanInput, version = 1): Storyboard {
   let usedSec = 0;
   if (semantic) {
     for (const b of beats) {
-      if (!b.card || !(b.intent === "example" || b.intent === "compare" || b.intent === "process")) continue;
+      if (!b.card || !(b.intent === "example" || b.intent === "compare" || b.intent === "process" || b.intent === "list" || (b.intent === "number" && !hasPerson))) continue;
       const start = r3(capWindow(b.p0).start);
       const end = r3(Math.min(duration, capWindow(b.p1).end));
       if (end - start < 1.2 || layouts.some((l) => start < l.end && end > l.start)) continue;
       // Without a speaker on screen every meaning layout is a full-screen explainer graphic.
       const kind = !hasPerson ? "explainer" : b.intent === "example" ? "pip" : b.intent === "compare" ? "compare" : "explainer";
+      if (b.intent === "number" && end - start < 1.8) continue;
       const media = kind === "pip" && usedSec < secondaries.length ? sec(usedSec++) : graphicSec;
       layouts.push({ id: `l${layouts.length + 1}`, start, end, kind, ...media, shape: kind === "pip" ? b.shape ?? "rounded" : undefined, intent: b.intent, card: b.card });
+    }
+  }
+  // Voice only (no speaker, no photos): every moment gets an explainer card — headline / counter between the meaning scenes.
+  const voiceOnly = project.mode === "voice-over-visuals" && visuals.every((v) => v.kind === "graphic");
+  if (semantic && voiceOnly) {
+    let i = 0;
+    while (i < phrases.length) {
+      const s0 = capWindow(i).start;
+      if (layouts.some((l) => s0 >= l.start - 0.01 && s0 < l.end)) { i++; continue; }
+      let j = i;
+      while (j + 1 < phrases.length && capWindow(j).end - s0 < 2.4 && !/[.!?…]$/.test(phrases[j]!.at(-1)!.text) && !layouts.some((l) => capWindow(j + 1).start >= l.start - 0.01 && capWindow(j + 1).start < l.end)) j++;
+      const e0 = Math.min(duration, capWindow(j).end);
+      const ws = phrases.slice(i, j + 1).flat();
+      const n = parseNumber(ws);
+      const card = n ? { variant: "counter" as const, title: "", label: n.label || undefined, value: n.value, suffix: n.suffix, items: [{ text: `${n.value}`, icon: null, at: n.at }] } : headlineCard(ws);
+      // A short tail of the previous scene ("…аласың.") stays with that scene instead of its own headline.
+      const prevL = layouts.find((l) => Math.abs(l.end - s0) < 0.02);
+      if (prevL && e0 - s0 < 1.6 && !n && /[.!?…]$/.test(phrases[j]!.at(-1)!.text)) {
+        prevL.end = r3(e0);
+        i = j + 1;
+        continue;
+      }
+      if (card && e0 - s0 >= 0.8) layouts.push({ id: "x", start: r3(s0), end: r3(e0), kind: "explainer", ...graphicSec, intent: n ? "number" : "neutral", card });
+      i = j + 1;
     }
   }
   if (project.mode === "expert-video") {
@@ -363,7 +388,8 @@ export function buildStoryboard(inp: PlanInput, version = 1): Storyboard {
       else if (o.captionPosition === "middle") cands.push(0.5 - h / 2);
       else if (o.captionPosition === "bottom") cands.push(safe.y1 - h);
       else {
-        // Default: as low as possible while staying above the platform's blind zone.
+        // Style preference first (e.g. chest level), then as low as possible above the platform's blind zone.
+        if (st.preferY != null && layoutAt(layouts, start + 0.05) === "full") cands.push(st.preferY);
         cands.push(safe.y1 - h);
         if (zone) cands.push(zone.y1 + 0.015);
         if (layoutAt(layouts, start + 0.05) === "split") cands.push(0.5 - h - 0.012, 0.5 - h / 2);
@@ -388,27 +414,78 @@ export function buildStoryboard(inp: PlanInput, version = 1): Storyboard {
     });
   });
 
-  // ---------- text behind the subject ----------
+  // ---------- posters: small label / BIG word behind the head / script line / count-up numbers ----------
   const behindText: BehindText[] = [];
+  const strip = (t: string) => t.replace(/^[«"(*]+|[»".,!?:;)*…—-]+$/gu, "");
+  const bigFactor: Record<string, number> = { oswald: 0.5, montserrat: 0.84, intertight: 0.66, geologica: 0.72, onest: 0.7, inter: 0.7, rubik: 0.74, raleway: 0.72, nunito: 0.72, ptserif: 0.7, cormorant: 0.6, badscript: 0.6 };
   if (o.behindText && faces && project.mode === "expert-video" && faces.faceCoverage > 0.6) {
-    let lastT = -Infinity;
-    for (const p of phrases) {
-      if (behindText.length >= Math.max(1, Math.floor(duration / 15))) break;
-      const w = p.find((x) => x.emphasis && x.text.replace(/[^\p{L}\p{N}]/gu, "").length >= 3 && x.text.length <= 12);
-      if (!w || w.start < 1.5 || w.start - lastT < 12 || w.start > duration - 2) continue;
-      const t0 = w.start;
-      const t1 = Math.min(duration, t0 + 1.9);
-      if (layouts.some((l) => l.kind !== "full" && t0 < l.end && t1 > l.start)) continue;
-      const z = faceZoneOut(t0, t1, 0);
-      if (!z) continue;
-      const word = w.text.replace(/[^\p{L}\p{N}%]/gu, "").toUpperCase();
-      const size = Math.min(0.24, ((safe.x1 - safe.x0) * 0.96) / (word.length * 0.84));
-      const textH = (size * W) / H;
-      const y = z.y0 + textH * 0.12; // centre slightly below head top → head covers the lower part
-      if (y - textH / 2 < safe.y0 || z.y0 > 0.55) continue;
-      behindText.push({ id: `b${behindText.length + 1}`, start: r3(t0), end: r3(t1), text: word, y: r3(y), size: r3(size), matteDir: null });
-      lastT = t0;
+    type Cand = { t0: number; t1: number; big: string; label?: string; script?: string; count?: BehindText["count"]; scriptAt?: number; why: string };
+    const cands: Cand[] = [];
+    // Hook: the first phrase gets a headline (label + BIG keyword + script tail).
+    const p0 = phrases.find((p) => p[0]!.start < 2.5 && p.length >= 2);
+    if (p0) {
+      const hc = headlineCard(p0);
+      const key = hc?.items[0];
+      if (key && key.text.length <= 12) cands.push({ t0: Math.max(0, p0[0]!.start - 0.05), t1: Math.min(duration, Math.max(p0.at(-1)!.end + 0.5, p0[0]!.start + 2.2)), big: key.text.toUpperCase(), label: hc!.label, script: hc!.script, scriptAt: p0.find((w) => strip(w.text) === hc!.script?.split(" ")[0])?.start, why: "hook" });
     }
+    // Numbers: count up in the big line.
+    for (const b of beats.filter((x) => x.intent === "number" && x.card?.value !== undefined)) {
+      const ph = phrases[b.p0]!;
+      const v = b.card!.value!;
+      if (v >= 100 && b.card!.suffix !== "%") continue; // big audience numbers → glass counter widget
+      cands.push({ t0: Math.max(0, ph[0]!.start - 0.05), t1: Math.min(duration, Math.max(ph.at(-1)!.end + 0.6, ph[0]!.start + 2.2)), big: `${v}${b.card!.suffix === "%" ? "%" : ""}`, label: b.card!.label, script: b.card!.suffix && b.card!.suffix !== "%" ? b.card!.suffix : undefined, count: { from: 0, to: v, prefix: "", suffix: b.card!.suffix === "%" ? "%" : "" }, why: "number" });
+    }
+    // Emphasis words (one per ~12 s).
+    for (const p of phrases) {
+      const w = p.find((x) => x.emphasis && !/\d/.test(x.text) && x.text.replace(/[^\p{L}\p{N}]/gu, "").length >= 3 && x.text.length <= 12);
+      if (w && w.start >= 1.5 && w.start <= duration - 2) cands.push({ t0: w.start, t1: Math.min(duration, w.start + 1.9), big: strip(w.text).toUpperCase(), why: "emphasis" });
+    }
+    cands.sort((x, y) => x.t0 - y.t0);
+    const maxN = Math.max(1, Math.floor(duration / 8));
+    for (const c of cands) {
+      if (behindText.length >= maxN) break;
+      if (behindText.some((b) => c.t0 < b.end + (c.why === "emphasis" ? 10 : 1.5) && c.t1 > b.start - 1.5)) continue;
+      // Shorten a poster that runs into the next layout (it must be gone before the speaker moves).
+      const nextL = layouts.find((l) => l.kind !== "full" && l.start > c.t0 && l.start < c.t1);
+      if (nextL) c.t1 = Math.max(c.t0, nextL.start - 0.1);
+      if (c.t1 - c.t0 < 1.3 || layouts.some((l) => l.kind !== "full" && c.t0 < l.end && c.t1 > l.start)) continue;
+      const z = faceZoneOut(c.t0, c.t1, 0);
+      if (!z) continue;
+      const word = c.big.replace(/[^\p{L}\p{N}%]/gu, "");
+      if (!word) continue;
+      const size = Math.min(c.why === "emphasis" ? 0.24 : 0.26, ((safe.x1 - safe.x0) * 0.96) / (word.length * (bigFactor[st.titleFont] ?? 0.8)));
+      const textH = (size * W) / H;
+      const labelH = c.label ? 0.035 : 0;
+      // Captions saying exactly the poster words disappear while it shows, so they do not block it.
+      const pw = new Set([c.label, c.big, c.script].filter(Boolean).join(" ").split(/\s+/).map((x) => x.toLowerCase().replace(/[^\p{L}\p{N}]/gu, "")));
+      const capBoxes = captions
+        .filter((k) => k.start < c.t1 && k.end > c.t0 && !k.lines.flat().every((w) => pw.has(w.text.toLowerCase().replace(/[^\p{L}\p{N}]/gu, ""))))
+        .map((k) => ({ y0: k.y - 0.01, y1: k.y + (k.lines.length * st.size * short * k.scale * st.lineHeight + st.size * short * 0.5) / H + 0.01 }));
+      const freeY = (y0: number, y1: number) => y0 >= safe.y0 && y1 <= safe.y1 && !capBoxes.some((k) => y0 < k.y1 && y1 > k.y0);
+      let y = z.y0 + textH * 0.12; // centre slightly below head top → head covers the lower part
+      let front = false;
+      let under = false;
+      if (y - textH / 2 - labelH < safe.y0 || z.y0 > 0.55) {
+        // No room behind the head → above the head in front, else under the chin (reference «эти эффекты / 10 МИНУТ»).
+        y = z.y0 - 0.012 - textH / 2;
+        front = true;
+        if (y - textH / 2 - labelH < safe.y0) {
+          y = z.y1 + 0.015 + labelH + textH / 2;
+          under = true;
+          if (!freeY(y - textH / 2 - labelH, y + textH / 2)) continue;
+        }
+      }
+      // Script line goes under the chin (or under the poster), never on the face or on a caption.
+      let script = c.script;
+      const sy = under ? y + textH / 2 + 0.004 : z.y1 + 0.012;
+      if (script && !freeY(sy, sy + 0.05)) script = undefined;
+      behindText.push({
+        id: `b${behindText.length + 1}`, start: r3(c.t0), end: r3(c.t1), text: word, y: r3(y), size: r3(size), matteDir: null,
+        ...(c.label ? { label: c.label, labelAt: r3(c.t0) } : {}), ...(script ? { script, scriptY: r3(sy), scriptAt: r3(Math.max(c.t0 + 0.3, c.scriptAt ?? c.t0 + 0.5)) } : {}),
+        ...(c.count ? { count: c.count } : {}), ...(front ? { front: true } : {}),
+      });
+    }
+    behindText.sort((x, y) => x.start - y.start).forEach((b, i) => (b.id = `b${i + 1}`));
   }
 
   // ---------- icons on matching words ----------
@@ -467,13 +544,81 @@ export function buildStoryboard(inp: PlanInput, version = 1): Storyboard {
     callouts.push({ id: `k${callouts.length + 1}`, start: t0, end: t1, text: st.titleUppercase && b.intent === "key" ? text.toUpperCase() : text, kind: b.intent === "cta" ? "cta" : "glass", y: r3(y) });
   }
 
+  // ---------- glass widgets next to the speaker, each on its spoken word ----------
+  const widgets: Widget[] = [];
+  if (project.mode === "expert-video" && o.icons) {
+    const WK: Array<[Widget["kind"], RegExp]> = [
+      ["notify", /^(instagram|инстаграм|инста|хабарлама|уведомл|notification|жазылушы|подписчик|оқырман|follower)/],
+      ["search", /^(ізде|іздеу|іздесең|google|гугл|поиск|ищ|search|найд|табасың|табу)/],
+      ["toggle", /^(қосасың|қосу|қосып|қос|автомат|включ|enable|активир|turn)/],
+      ["comment", /^(коммент|пікір|comment)/],
+    ];
+    const occupied = (t0: number, t1: number): Rect[] => [
+      ...captions.filter((c) => c.start < t1 && c.end > t0).map(capBox),
+      ...callouts.filter((c) => c.start < t1 && c.end > t0).map((c) => ({ x0: 0.08, x1: 0.92, y0: c.y - 0.01, y1: c.y + 0.06 })),
+      ...behindText.filter((b) => b.start < t1 && b.end > t0).flatMap((b) => {
+        const hh = (b.size * W) / H;
+        const r = [{ x0: 0.04, x1: 0.96, y0: b.y - hh / 2 - (b.label ? 0.04 : 0), y1: b.y + hh / 2 }];
+        if (b.scriptY !== undefined) r.push({ x0: 0.1, x1: 0.9, y0: b.scriptY, y1: b.scriptY + 0.06 });
+        return r;
+      }),
+      ...widgets.filter((x) => x.start < t1 && x.end > t0).map((x) => ({ x0: x.x - x.w / 2, x1: x.x + x.w / 2, y0: x.y - 0.06, y1: x.y + 0.06 })),
+    ];
+    const place = (kind: Widget["kind"], t0: number, t1: number) => {
+      const banner = kind === "notify" || kind === "search" || kind === "comment";
+      const w = banner ? 0.8 : 0.34;
+      const hN = banner ? 0.075 : (0.34 * W * 0.62) / H;
+      const zone = faceZoneOut(t0, t1, 0.015);
+      const occ = occupied(t0, t1);
+      const pts: Array<[number, number]> = banner
+        ? [[0.5, safe.y0 + hN / 2 + 0.01], [0.5, (zone?.y1 ?? 0.45) + hN / 2 + 0.015], [0.5, 0.5]]
+        : [[0.26, 0.3], [0.74, 0.3], [0.26, 0.5], [0.74, 0.5], [0.26, 0.4], [0.74, 0.4]];
+      return pts.find(([x, y]) => {
+        const box = { x0: x - w / 2, x1: x + w / 2, y0: y - hN / 2, y1: y + hN / 2 };
+        return insideSafe(box, safe) && !(zone && overlaps(box, zone)) && !occ.some((r) => overlaps(box, r));
+      })?.concat([w]) as [number, number, number] | undefined;
+    };
+    const maxW = Math.max(1, Math.floor(duration / 3));
+    const push = (kind: Widget["kind"], at: number, text: string, word: string, value?: number) => {
+      if (widgets.length >= maxW || widgets.some((x) => Math.abs(x.start - at) < 2.5)) return;
+      const t0 = r3(Math.max(0, at - 0.08));
+      const t1 = r3(Math.min(duration, at + (kind === "search" || kind === "comment" ? 2.8 : 2.4)));
+      if (layouts.some((l) => l.kind !== "full" && t0 < l.end && t1 > l.start)) return;
+      const pl = place(kind, t0, t1);
+      if (!pl) return;
+      widgets.push({ id: `w${widgets.length + 1}`, start: t0, end: t1, kind, x: r3(pl[0]), y: r3(pl[1]), w: pl[2], text: text.slice(0, 34), value, word });
+    };
+    // Numbers that were not shown as a poster: audience size → counter, percent → ring, time → timer.
+    for (const b of beats.filter((x) => x.intent === "number" && x.card?.value !== undefined)) {
+      const at = b.card!.items[0]!.at;
+      if (behindText.some((x) => x.count && Math.abs(x.start - at) < 1)) continue;
+      const suf = (b.card!.suffix ?? "").toLowerCase();
+      const v = b.card!.value!;
+      if (suf === "%") push("ring", at, b.card!.label || suf, String(v), v);
+      else if (/^(минут|мин|секунд|сек|сағат|час|minute|second|hour)/.test(suf)) push("timer", at, `${v} ${b.card!.suffix}`, String(v), /^(сағат|час|hour)/.test(suf) ? v * 3600 : /^(минут|мин|minute)/.test(suf) ? v * 60 : v);
+      else push("counter", at, b.card!.suffix || b.card!.label || "", String(v), v);
+    }
+    phrases.forEach((p) => {
+      for (const wd of p) {
+        const k = wd.text.toLowerCase().replace(/ё/g, "е").replace(/[^\p{L}\p{N}]/gu, "");
+        const hit = WK.find(([, re]) => re.test(k));
+        if (!hit) continue;
+        const rest = p.map((x) => strip(x.text)).join(" ");
+        const quoted = p.map((x) => x.text).join(" ").match(/[«"]([^»"]+)[»"]/)?.[1] ?? p.find((x) => x.emphasis)?.text;
+        push(hit[0], wd.start, hit[0] === "comment" ? strip(quoted ?? rest) : hit[0] === "notify" ? rest : hit[0] === "search" ? rest.toLowerCase() : rest, wd.text);
+        break;
+      }
+    });
+    widgets.sort((a, b) => a.start - b.start).forEach((x, i) => (x.id = `w${i + 1}`));
+  }
+
   // Plates win over keyword icons at the same moment (one accent at a time).
-  for (let i = icons.length - 1; i >= 0; i--) if (callouts.some((k) => icons[i]!.start < k.end && icons[i]!.end > k.start)) icons.splice(i, 1);
+  for (let i = icons.length - 1; i >= 0; i--) if ([...callouts, ...widgets].some((k) => icons[i]!.start < k.end && icons[i]!.end > k.start)) icons.splice(i, 1);
   icons.forEach((ic, i) => (ic.id = `i${i + 1}`));
 
   // A plate never duplicates the subtitle: captions whose words are all on the plate are dropped while it shows.
   const nw = (x: string) => x.toLowerCase().replace(/ё/g, "е").replace(/[^\p{L}\p{N}]/gu, "");
-  for (const k of callouts) {
+  for (const k of [...callouts, ...behindText.filter((b) => b.label || b.script).map((b) => ({ start: b.start, end: b.end, text: [b.label, b.text, b.script].filter(Boolean).join(" ") }))]) {
     const on = new Set(k.text.split(/\s+/).map(nw).filter(Boolean));
     for (let i = captions.length - 1; i >= 0; i--) {
       const c = captions[i]!;
@@ -490,10 +635,13 @@ export function buildStoryboard(inp: PlanInput, version = 1): Storyboard {
       sfx.push({ t: r3(t), kind, gain, reason });
     };
     behindText.forEach((b) => add(b.start - 0.12, "whoosh", 0.2, `Жазу бастың артында: ${b.text}`));
+    behindText.filter((b) => b.count).forEach((b) => add(b.start + 0.1, "tickroll", 0.15, `Санау: ${b.text}`));
     layouts.forEach((l) => add(l.start - 0.08, l.kind === "explainer" ? "swipe" : "whoosh", 0.16, `Макет: ${l.kind}`));
     // Each card element sounds exactly when it appears (= when its word is spoken).
     layouts.forEach((l) => l.card?.items.forEach((it, k) => add(it.at, l.card!.variant === "steps" ? "click" : l.card!.variant === "compare" && k === 1 ? "impact" : "pop", l.card!.variant === "compare" && k === 1 ? 0.14 : 0.15, `Карточка: ${it.text}`)));
     callouts.forEach((c) => add(c.start, c.kind === "cta" ? "pop" : "soft", 0.15, `Плашка: ${c.text}`));
+    const wsfx: Record<Widget["kind"], Sfx["kind"]> = { counter: "tickroll", ring: "tickroll", search: "type", comment: "type", notify: "ding", toggle: "click", timer: "tick" };
+    widgets.forEach((x) => add(x.start + (x.kind === "search" || x.kind === "comment" ? 0.25 : 0.05), wsfx[x.kind], x.kind === "notify" ? 0.14 : 0.16, `Виджет ${x.kind}: ${x.text}`));
     icons.forEach((ic) => add(ic.start, "pop", 0.16, `Иконка: ${ic.name}`));
     camera.filter((k) => k.move === "cut" && k.t > 0.3).forEach((k) => add(k.t - 0.05, "soft", 0.14, "Склейка/смена плана"));
     captions.forEach((c) => {
@@ -573,7 +721,7 @@ export function buildStoryboard(inp: PlanInput, version = 1): Storyboard {
     style: { preset: o.style, colors, captionPosition: o.captionPosition, overrides: o.styleOverrides ?? {}, source: o.styleSource ?? o.style },
     grade: o.grade ?? null,
     voice: { src: voice.prepared, gain: 1 },
-    visuals, camera, captions, behindText, callouts, layouts, icons, sfx, progressBar: o.progressBar, scenes, checks,
+    visuals, camera, captions, behindText, callouts, layouts, icons, sfx, widgets, progressBar: o.progressBar, scenes, checks,
     music: o.music ? { src: o.music, gain: 0.2, duck: 0.07, speech: speechSpans(words) } : null,
     beats: beats.map((b) => ({ start: r3(phrases[b.p0]![0]!.start), end: r3(phrases[b.p1]!.at(-1)!.end), intent: b.intent, reason: b.reason, source: b.source })),
     transcriptNote: transcript.notes.join(" "),

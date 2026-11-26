@@ -78,6 +78,16 @@ export function validateStoryboard(sb: Storyboard, faces: Faces | null, baseChec
       }
     }
   }
+  for (const w of sb.widgets ?? []) {
+    const hh = w.kind === "notify" || w.kind === "search" || w.kind === "comment" ? 0.075 : (w.w * sb.width * 0.62) / sb.height;
+    const box = { x0: w.x - w.w / 2, x1: w.x + w.w / 2, y0: w.y - hh / 2, y1: w.y + hh / 2 };
+    for (let t = w.start; t < w.end - 0.001; t += 0.3) {
+      if (faceBoxesAt(sb, faces, t).some((f) => overlaps(box, f, 0.0005))) {
+        checks.push({ level: "error", code: "plate_face", at: w.start, message: `Виджет «${w.kind}» перекрывает лицо.` });
+        break;
+      }
+    }
+  }
   // Voice must stay on top: effects and music are kept far below speech.
   const loudSfx = sb.sfx.filter((x) => x.gain > 0.35);
   if (loudSfx.length) checks.push({ level: "warn", code: "audio_balance", at: loudSfx[0]!.t, message: `Звуковой эффект громче нормы (${loudSfx.length} шт.) — может заглушить голос.` });
