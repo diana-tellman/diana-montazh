@@ -12,7 +12,7 @@ import type { Icon, Layout, Widget } from "../storyboard/schema";
 import { cardRect, clipToBox, personAt } from "../layout/person";
 import { autoBeats, directionsToBeats, headlineCard, mergeBeats, parseNumber, sentencePhrases, type DirectorBeat, type Directions } from "./director";
 import { iconForWord } from "../design/icons";
-import { groupPhrases, parseEmphasis, splitLines, type TWord } from "./phrases";
+import { groupPhrases, parseEmphasisSeq, splitLines, type TWord } from "./phrases";
 
 export type PlanOptions = {
   format: FormatId;
@@ -105,13 +105,14 @@ export function buildStoryboard(inp: PlanInput, version = 1): Storyboard {
   const checks: Check[] = [];
 
   // ---------- words & phrases ----------
-  const words: TWord[] = transcript.segments.flatMap((s) =>
-    s.words.map((w) => {
-      const e = parseEmphasis(w.text);
-      return { text: st.uppercase ? e.text.toUpperCase() : e.text, start: w.startMs / 1000, end: w.endMs / 1000, emphasis: e.emphasis };
-    }),
-  );
-  const phrases = groupPhrases(words, { maxWords: st.maxWordsPerPhrase, maxChars: st.maxCharsPerLine * 2 - 2, pause: 0.45, minDur: 0.6 });
+  const allW = transcript.segments.flatMap((s) => s.words);
+  const emph = parseEmphasisSeq(allW.map((w) => w.text));
+  const words: TWord[] = allW.map((w, i) => {
+    const e = emph[i]!;
+    return { text: st.uppercase ? e.text.toUpperCase() : e.text, start: w.startMs / 1000, end: w.endMs / 1000, emphasis: e.emphasis };
+  });
+  // One-word style (reference): only very short words (≤ 4 letters, < 0.25 s) join a neighbour.
+  const phrases = groupPhrases(words, { maxWords: st.maxWordsPerPhrase, maxChars: st.maxWordsPerPhrase === 1 ? st.maxCharsPerLine : st.maxCharsPerLine * 2 - 2, pause: 0.45, minDur: st.maxWordsPerPhrase === 1 ? 0.2 : 0.6 });
   // Auto emphasis: one long content word every ~3 phrases if the user marked none.
   if (!words.some((w) => w.emphasis && !/\d/.test(w.text))) {
     phrases.forEach((p, i) => {
@@ -237,6 +238,9 @@ export function buildStoryboard(inp: PlanInput, version = 1): Storyboard {
   phrases.forEach((p, i) => p.forEach((w) => capIdx.set(w, i)));
   const cwStart = (w: TWord) => capWindow(capIdx.get(w) ?? 0).start;
   const cwEnd = (w: TWord) => capWindow(capIdx.get(w) ?? phrases.length - 1).end;
+  const bFirst = (b: DirectorBeat) => b.w0 ?? sp[b.p0]![0]!;
+  const bLast = (b: DirectorBeat) => b.w1 ?? sp[b.p1]!.at(-1)!;
+  const bWords = (b: DirectorBeat) => words.filter((w) => w.start >= bFirst(b).start && w.end <= bLast(b).end);
   const auto = autoBeats({ phrases: sp, duration, hasPerson });
   const manual = inp.directions ? directionsToBeats(inp.directions, sp) : [];
   const beats: DirectorBeat[] = mergeBeats(auto, manual, inp.directions?.replaceAuto ?? false);
@@ -255,8 +259,8 @@ export function buildStoryboard(inp: PlanInput, version = 1): Storyboard {
   if (semantic) {
     for (const b of beats) {
       if (!b.card || !(b.intent === "example" || b.intent === "compare" || b.intent === "process" || b.intent === "list" || (b.intent === "number" && !hasPerson))) continue;
-      const start = r3(cwStart(sp[b.p0]![0]!));
-      const end = r3(Math.min(duration, cwEnd(sp[b.p1]!.at(-1)!)));
+      const start = r3(cwStart(bFirst(b)));
+      const end = r3(Math.min(duration, cwEnd(bLast(b))));
       if (end - start < 1.2 || layouts.some((l) => start < l.end && end > l.start)) continue;
       // Without a speaker on screen every meaning layout is a full-screen explainer graphic.
       const kind = !hasPerson ? "explainer" : b.intent === "example" ? "pip" : b.intent === "compare" ? "compare" : "explainer";
@@ -321,8 +325,8 @@ export function buildStoryboard(inp: PlanInput, version = 1): Storyboard {
   // ---------- emotion: speaker full frame + slow push-in onto the face ----------
   if (o.cameraEnergy > 0) {
     for (const b of beats.filter((x) => x.intent === "emotion")) {
-      const s0 = sp[b.p0]![0]!.start;
-      const s1 = Math.min(duration, sp[b.p1]!.at(-1)!.end + 0.3);
+      const s0 = bFirst(b).start;
+      const s1 = Math.min(duration, bLast(b).end + 0.3);
       if (s1 - s0 < 0.8 || layouts.some((l) => s0 < l.end && s1 > l.start)) continue;
       const v = visualAt(s0);
       if (v.kind !== "video") continue;
@@ -436,15 +440,20 @@ export function buildStoryboard(inp: PlanInput, version = 1): Storyboard {
     }
     // Numbers: count up in the big line.
     for (const b of beats.filter((x) => x.intent === "number" && x.card?.value !== undefined)) {
-      const ph = sp[b.p0]!;
+      const ph = bWords(b);
       const v = b.card!.value!;
       if (v >= 100 && b.card!.suffix !== "%") continue; // big audience numbers → glass counter widget
       cands.push({ t0: Math.max(0, ph[0]!.start - 0.05), t1: Math.min(duration, Math.max(ph.at(-1)!.end + 0.6, ph[0]!.start + 2.2)), big: `${v}${b.card!.suffix === "%" ? "%" : ""}`, label: b.card!.label, script: b.card!.suffix && b.card!.suffix !== "%" ? b.card!.suffix : undefined, count: { from: 0, to: v, prefix: "", suffix: b.card!.suffix === "%" ? "%" : "" }, why: "number" });
     }
-    // Emphasis words (one per ~12 s).
-    for (const p of phrases) {
-      const w = p.find((x) => x.emphasis && !/\d/.test(x.text) && x.text.replace(/[^\p{L}\p{N}]/gu, "").length >= 3 && x.text.length <= 12);
-      if (w && w.start >= 1.5 && w.start <= duration - 2) cands.push({ t0: w.start, t1: Math.min(duration, w.start + 1.9), big: strip(w.text).toUpperCase(), why: "emphasis" });
+    // Emphasis words (one per ~12 s), read per sentence so "*Claude Code*" stays together.
+    for (const p of sp) {
+      const k = p.findIndex((x) => x.emphasis && !/\d/.test(x.text) && x.text.replace(/[^\p{L}\p{N}]/gu, "").length >= 3 && x.text.length <= 12);
+      if (k < 0) continue;
+      // A *multi word* accent ("Claude Code") stays together when it is short.
+      let big = strip(p[k]!.text);
+      if (p[k + 1]?.emphasis && !/\d/.test(p[k + 1]!.text) && (big + " " + strip(p[k + 1]!.text)).length <= 14) big += " " + strip(p[k + 1]!.text);
+      const w = p[k]!;
+      if (w.start >= 1.5 && w.start <= duration - 2) cands.push({ t0: w.start, t1: Math.min(duration, w.start + 1.9), big: big.toUpperCase(), why: "emphasis" });
     }
     cands.sort((x, y) => x.t0 - y.t0);
     const maxN = Math.max(1, Math.floor(duration / 8));
@@ -457,10 +466,10 @@ export function buildStoryboard(inp: PlanInput, version = 1): Storyboard {
       if (c.t1 - c.t0 < 1.3 || layouts.some((l) => l.kind !== "full" && c.t0 < l.end && c.t1 > l.start)) continue;
       const z = faceZoneOut(c.t0, c.t1, 0);
       if (!z) continue;
-      const word = c.big.replace(/[^\p{L}\p{N}%]/gu, "");
+      const word = c.big.replace(/[^\p{L}\p{N}% ]/gu, "").trim();
       if (!word) continue;
-      const size = Math.min(c.why === "emphasis" ? 0.24 : 0.26, ((safe.x1 - safe.x0) * 0.96) / (word.length * (bigFactor[st.titleFont] ?? 0.8)));
-      const textH = (size * W) / H;
+      let size = Math.min(c.why === "emphasis" ? 0.24 : 0.26, ((safe.x1 - safe.x0) * 0.96) / (word.length * (bigFactor[st.titleFont] ?? 0.8)));
+      let textH = (size * W) / H;
       const labelH = c.label ? 0.035 : 0;
       // Captions saying exactly the poster words disappear while it shows, so they do not block it.
       const pw = new Set([c.label, c.big, c.script].filter(Boolean).join(" ").split(/\s+/).map((x) => x.toLowerCase().replace(/[^\p{L}\p{N}]/gu, "")));
@@ -476,7 +485,14 @@ export function buildStoryboard(inp: PlanInput, version = 1): Storyboard {
         y = z.y0 - 0.012 - textH / 2;
         front = true;
         if (y - textH / 2 - labelH < safe.y0) {
-          y = z.y1 + 0.015 + labelH + textH / 2;
+          // Under the chin: shrink the big line to the free band above the captions.
+          const top = z.y1 + 0.015;
+          const bottom = Math.min(safe.y1, ...capBoxes.map((k) => k.y0).filter((v) => v > top));
+          const fitH = Math.min(textH, bottom - top - labelH - 0.005);
+          if (fitH < 0.045) continue;
+          size = (fitH * H) / W;
+          textH = fitH;
+          y = top + labelH + textH / 2;
           under = true;
           if (!freeY(y - textH / 2 - labelH, y + textH / 2)) continue;
         }
@@ -528,8 +544,8 @@ export function buildStoryboard(inp: PlanInput, version = 1): Storyboard {
   const callouts: Callout[] = [];
   const capBox = (c: Caption) => ({ x0: 0.08, x1: 0.92, y0: c.y - 0.01, y1: c.y + (c.lines.length * st.size * short * c.scale * st.lineHeight + st.size * short * 0.5) / H + 0.01 });
   for (const b of beats.filter((x) => (x.intent === "key" || x.intent === "cta") && x.plate)) {
-    const t0 = r3(Math.max(0, sp[b.p0]![0]!.start - 0.05));
-    const t1 = r3(Math.min(duration, Math.max(t0 + 2.2, sp[b.p1]!.at(-1)!.end + 0.6)));
+    const t0 = r3(Math.max(0, bFirst(b).start - 0.05));
+    const t1 = r3(Math.min(duration, Math.max(t0 + 2.2, bLast(b).end + 0.6)));
     if (layouts.some((l) => l.kind !== "full" && t0 < l.end && t1 > l.start)) continue;
     if (behindText.some((x) => t0 < x.end && t1 > x.start)) continue;
     const text = b.plate!.length > 26 ? b.plate!.split(" ").reduce((acc, w) => ((acc + " " + w).trim().length <= 24 ? (acc + " " + w).trim() : acc), "") : b.plate!;
@@ -725,7 +741,7 @@ export function buildStoryboard(inp: PlanInput, version = 1): Storyboard {
       title: layCard ? `${INTENT_LABEL[layCard.intent ?? "neutral"]}: ${layCard.card!.items.map((x) => x.text).join(" · ")}` : bt[0] ? `Жазу артта: ${bt[0].text}` : caps[0] ? caps[0].lines.flat().map((w) => w.text).join(" ").slice(0, 40) : "—",
       onScreenText: caps.map((c) => c.lines.map((l) => l.map((w) => (w.emphasis ? `*${w.text}*` : w.text)).join(" ")).join(" / ")).join(" | "),
       camera: v.kind === "video" ? `зум ×${cam.zoom.toFixed(2)}${camera.some((k) => k.move === "ease" && k.t > s0 && k.t <= s1) ? ", плавный наезд" : ""}, ${v.framing === "contain" ? "видео в рамке + размытый фон" : "лицо в верхней трети"}` : v.kind === "photo" ? "фото, медленный наезд (Ken Burns)" : "графический фон",
-      animation: `${st.label}: ${st.enter === "pop" ? "слова выпрыгивают" : st.enter === "rise" ? "слова поднимаются" : st.enter === "slide" ? "слова выезжают" : "плавное появление"}, активное слово — ${st.active === "pill" ? "плашка" : st.active === "color" ? "цвет" : st.active === "scale" ? "увеличение" : "подчёркивание"}${bt.length ? "; крупное слово за головой" : ""}${lay.length ? `; ${lay.map((l) => LAYOUT_LABEL[l.kind] ?? "весь кадр").join(", ")}` : ""}${beats.filter((b) => sp[b.p0]![0]!.start < s1 && sp[b.p1]!.at(-1)!.end > s0).map((b) => `; мағынасы: ${b.reason}`).join("")}${callouts.filter((c) => c.start < s1 && c.end > s0).map((c) => `; плашка «${c.text}»`).join("")}${ics.length ? `; иконки: ${ics.map((x) => `${x.name} («${x.word}»)`).join(", ")}` : ""}`,
+      animation: `${st.label}: ${st.enter === "pop" ? "слова выпрыгивают" : st.enter === "rise" ? "слова поднимаются" : st.enter === "slide" ? "слова выезжают" : "плавное появление"}, активное слово — ${st.active === "pill" ? "плашка" : st.active === "color" ? "цвет" : st.active === "scale" ? "увеличение" : "подчёркивание"}${bt.length ? "; крупное слово за головой" : ""}${lay.length ? `; ${lay.map((l) => LAYOUT_LABEL[l.kind] ?? "весь кадр").join(", ")}` : ""}${beats.filter((b) => bFirst(b).start < s1 && bLast(b).end > s0).map((b) => `; мағынасы: ${b.reason}`).join("")}${callouts.filter((c) => c.start < s1 && c.end > s0).map((c) => `; плашка «${c.text}»`).join("")}${ics.length ? `; иконки: ${ics.map((x) => `${x.name} («${x.word}»)`).join(", ")}` : ""}`,
       sfx: fx.length ? fx.map((x) => `${x.kind} ${x.t.toFixed(1)}с`).join(", ") : "—",
       checks: checks.filter((c) => c.at !== null && c.at >= s0 && c.at < s1),
     };
@@ -739,7 +755,7 @@ export function buildStoryboard(inp: PlanInput, version = 1): Storyboard {
     voice: { src: voice.prepared, gain: 1 },
     visuals, camera, captions, behindText, callouts, layouts, icons, sfx, widgets, progressBar: o.progressBar, scenes, checks,
     music: o.music ? { src: o.music, gain: 0.2, duck: 0.07, speech: speechSpans(words) } : null,
-    beats: beats.map((b) => ({ start: r3(sp[b.p0]![0]!.start), end: r3(sp[b.p1]!.at(-1)!.end), intent: b.intent, reason: b.reason, source: b.source })),
+    beats: beats.map((b) => ({ start: r3(bFirst(b).start), end: r3(bLast(b).end), intent: b.intent, reason: b.reason, source: b.source })),
     transcriptNote: transcript.notes.join(" "),
   };
 }

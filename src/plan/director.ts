@@ -29,6 +29,9 @@ export type DirectorBeat = {
   /** Key-thought / CTA plate text. */
   plate?: string;
   source: "auto" | "claude";
+  /** Exact first/last spoken word (Claude's directions use exact times, not whole sentences). */
+  w0?: TWord;
+  w1?: TWord;
 };
 
 /** storyboard/directions.json — written by Claude after reading the transcript (times in seconds). */
@@ -349,9 +352,11 @@ export function directionsToBeats(d: Directions, phrases: TWord[][]): DirectorBe
     let p1 = p0;
     while (p1 + 1 < phrases.length && pStart(phrases[p1 + 1]!) < b.end - 0.1) p1++;
     if (pStart(phrases[p0]!) > b.end) continue;
-    const ws = phrases.slice(p0, p1 + 1).flat();
-    const s = pStart(phrases[p0]!);
-    const e = pEnd(phrases[p1]!);
+    const all = phrases.slice(p0, p1 + 1).flat();
+    const inside = all.filter((w) => w.start >= b.start - 0.15 && w.end <= b.end + 0.25);
+    const ws = inside.length ? inside : all;
+    const s = ws[0]!.start;
+    const e = ws.at(-1)!.end;
     const at = (text: string, k: number, n: number) => {
       const first = clean(text.split(/\s+/)[0] ?? "");
       const hit = first.length >= 2 ? ws.find((w) => { const c = clean(w.text); return c.startsWith(first.slice(0, Math.max(3, Math.min(first.length, 5)))) || first.startsWith(c.slice(0, 5)); }) : undefined;
@@ -372,7 +377,7 @@ export function directionsToBeats(d: Directions, phrases: TWord[][]): DirectorBe
         : b.intent === "process" ? extractSteps(phrases.slice(p0, p1 + 1)) : b.intent === "compare" ? splitCompare(ws) : [contentLabel(ws, 3)].filter((x): x is { text: string; at: number } => !!x);
       card = { variant: b.variant && b.variant !== "counter" && b.variant !== "headline" ? b.variant : b.intent === "process" ? "steps" : b.intent, title: b.title ?? "", items: items.slice(0, b.intent === "compare" ? 2 : 4).map((x) => ({ text: x.text, icon: iconFor(x.text), at: Math.max(s, x.at) })) };
     }
-    out.push({ p0, p1, intent: b.intent, reason: b.reason || "Claude: мағынасы бойынша", card, shape: b.shape, plate: b.plate ?? (b.intent === "key" || b.intent === "cta" ? contentLabel(ws, 4)?.text : undefined), source: "claude" });
+    out.push({ p0, p1, intent: b.intent, reason: b.reason || "Claude: мағынасы бойынша", card, shape: b.shape, plate: b.plate ?? (b.intent === "key" || b.intent === "cta" ? contentLabel(ws, 4)?.text : undefined), source: "claude", w0: ws[0], w1: ws.at(-1) });
   }
   return out;
 }

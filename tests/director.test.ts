@@ -158,3 +158,12 @@ describe("reference techniques: numbers, lists, headlines", () => {
     expect(c.variant).toBe("headline");
   });
 });
+
+import { parseEmphasisSeq } from "../src/plan/phrases";
+describe("script emphasis spans", () => {
+  it("*multi word* accents are clean and flagged", () => {
+    const r = parseEmphasisSeq(["осы", "*Claude", "Code*", "сабағы", "*8", "жыл*", "*Диана*"]);
+    expect(r.map((x) => x.text)).toEqual(["осы", "Claude", "Code", "сабағы", "8", "жыл", "Диана"]);
+    expect(r.map((x) => x.emphasis)).toEqual([false, true, true, false, true, true, true]);
+  });
+});

@@ -31,7 +31,7 @@ import { loadFaces, loadTranscript, revokeApproval, saveStoryboard, sbFile } fro
 import { FONT_CLASSES } from "../src/design/fontNames";
 import { referenceOptions, SIZE } from "../src/plan/reference";
 import { autoBeats, DirectionsSchema, sentencePhrases, type Directions } from "../src/plan/director";
-import { parseEmphasis } from "../src/plan/phrases";
+import { parseEmphasisSeq } from "../src/plan/phrases";
 import { main, out, parseArgs, str } from "./_cli";
 
 const run = promisify(execFile);
@@ -123,7 +123,9 @@ main(async () => {
   const sb = buildStoryboard({ project, transcript, faces, fills, graded, options: o, directions }, prevVersion + 1);
 
   // work/beats.json — phrases with times + automatic meaning decisions, for Claude to review.
-  const words = transcript.segments.flatMap((s) => s.words.map((w) => ({ ...parseEmphasis(w.text), start: w.startMs / 1000, end: w.endMs / 1000 })));
+  const allW = transcript.segments.flatMap((s) => s.words);
+  const emph = parseEmphasisSeq(allW.map((w) => w.text));
+  const words = allW.map((w, i) => ({ ...emph[i]!, start: w.startMs / 1000, end: w.endMs / 1000 }));
   const phrases = sentencePhrases(words);
   const auto = autoBeats({ phrases, duration: sb.durationSec, hasPerson: project.mode === "expert-video" });
   writeFileSync(join(p.work, "beats.json"), JSON.stringify({
