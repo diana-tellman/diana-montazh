@@ -23,6 +23,7 @@ description: Единственный режиссёр студии для ра�
    │
  4 ДВИЖОК ── подробный бриф / «премиум» / спецэффекты (фон, контур, текст за человеком) → SHOWCASE
    │          обычный Reels · анимация из голоса · фото + голос                          → PLAN
+   │          чистая графика без человека (интро, логотип, инфографика)                  → HYPERFRAMES
    │          «презентация / слайды / pptx»                                             → PPTX
    │
  5 РАСКАДРОВКА ─ сам проверил кадры → contact-sheet + аниматик + shotlist (+ breakdown по дорожкам) → два варианта
@@ -46,6 +47,8 @@ description: Единственный режиссёр студии для ра�
 | 7 | `approve` → `render` | `showcase -- approve` → `showcase -- render` | `render-delivery.md` |
 | 7 | `npm run cover -- <id> --title "…*акцент*"` · `npm run qc -- <id>` | то же | `render-delivery.md` |
 | C | план слайдов → одобрение → `npm run pptx -- <presentation.json>` | — | `presentation.md` |
+| фото | вырезать фон фото/обложки: `npm run cutout -- <файл>` (rembg) | то же | `tools.md` |
+| графика без спикера | `npm run hf -- new <папка>` → `snapshot` → одобрение → `render` (HyperFrames) | готовый MP4 — клипом в монтаж | `tools.md` |
 
 Готовый пример целиком (бриф → study → вопросы → v1–v4 в Premium Editorial): `references/worked-example.md` + `references/example-showcase.json`.
 
@@ -89,6 +92,7 @@ description: Единственный режиссёр студии для ра�
 | рендер, обложка, QC, выдача | `render-delivery.md` |
 | презентация PPTX | `presentation.md` |
 | телефон, облако, GitHub, ключи | `phone-cloud.md` |
+| инструменты: FFmpeg, Whisper, MediaPipe, rembg, Remotion, HyperFrames — что и когда | `tools.md` |
 
 ## Нельзя
 - Рендерить без одобрения текущей версии; обещать непроверенное; «готово» до отправки файла.

@@ -8,6 +8,9 @@ Subject analysis for DIANA MOBILE MOTION STUDIO.
       Person cut-out WebP frames (RGBA) for "text behind subject", temporally smoothed.
   cover-candidates <video> <faces.json> <out_dir> [--n 6]
       Best cover frames: big centred face, mouth closed, sharp.
+  cutout <image> <out.png> [--model u2net_human_seg] [--matting]
+      Background removal for a single image (photo, cover frame) with rembg; RGBA PNG.
+      `cutout --prefetch` only downloads the model (U2NET_HOME, default models/rembg).
 
 All coordinates are normalised 0..1 in the video's display frame.
 Models: MediaPipe Face Landmarker + Selfie Multiclass Segmenter (Apache-2.0).
@@ -300,6 +303,22 @@ def cmd_grade(a):
     print(json.dumps({"lut": a.out, "reference": stats(ref), "source": stats(src), "strength": a.strength}))
 
 
+def cmd_cutout(a):
+    from rembg import new_session, remove
+    from PIL import Image
+
+    session = new_session(a.model)
+    if a.prefetch:
+        print(json.dumps({"model": a.model, "ready": True}))
+        return
+    im = Image.open(a.image)
+    im = im.convert("RGB")
+    out = remove(im, session=session, alpha_matting=a.matting, alpha_matting_foreground_threshold=240, alpha_matting_background_threshold=10, alpha_matting_erode_size=8)
+    out.save(a.out)
+    alpha = np.asarray(out.split()[3], dtype=np.float32) / 255
+    print(json.dumps({"out": a.out, "width": out.width, "height": out.height, "foreground": round(float((alpha > 0.5).mean()), 4), "model": a.model}))
+
+
 def main():
     ap = argparse.ArgumentParser()
     sub = ap.add_subparsers(dest="cmd", required=True)
@@ -312,6 +331,9 @@ def main():
     p.add_argument("video"); p.add_argument("faces"); p.add_argument("out_dir"); p.add_argument("--n", type=int, default=6)
     p = sub.add_parser("grade")
     p.add_argument("reference"); p.add_argument("source"); p.add_argument("out"); p.add_argument("--strength", type=float, default=0.85)
+    p = sub.add_parser("cutout")
+    p.add_argument("image", nargs="?"); p.add_argument("out", nargs="?"); p.add_argument("--model", default="u2net_human_seg")
+    p.add_argument("--matting", action="store_true"); p.add_argument("--prefetch", action="store_true")
     p = sub.add_parser("cuts")
     p.add_argument("video")
     a = ap.parse_args()
@@ -320,7 +342,7 @@ def main():
         c = scene_cuts(a.video)
         print(json.dumps({"cuts": c, "durationSec": dur, "cutsPerSec": round(len(c) / max(1.0, dur), 3)}))
         return
-    {"analyze": cmd_analyze, "matte": cmd_matte, "cover-candidates": cmd_cover, "grade": cmd_grade}[a.cmd](a)
+    {"analyze": cmd_analyze, "matte": cmd_matte, "cover-candidates": cmd_cover, "grade": cmd_grade, "cutout": cmd_cutout}[a.cmd](a)
 
 
 if __name__ == "__main__":

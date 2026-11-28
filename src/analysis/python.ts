@@ -59,7 +59,7 @@ export async function ensureAnalysisEnv(log: (s: string) => void = () => {}): Pr
 export async function runAnalysis<T>(args: string[], log?: (s: string) => void): Promise<T> {
   const env = await ensureAnalysisEnv(log);
   const { stdout } = await run(env.python, [SCRIPT, ...args], {
-    env: { ...process.env, DMS_MP_MODELS: env.models, GLOG_minloglevel: "2", TF_CPP_MIN_LOG_LEVEL: "2" },
+    env: { ...process.env, DMS_MP_MODELS: env.models, U2NET_HOME: join(MODELS_DIR, "rembg"), GLOG_minloglevel: "2", TF_CPP_MIN_LOG_LEVEL: "2" },
     maxBuffer: 64 * 1024 * 1024,
     timeout: 3_600_000,
   });

@@ -34,7 +34,9 @@
     "pptx": "tsx scripts/pptx.ts",
     "voice-script": "tsx scripts/voice-script.ts",
     "showcase": "tsx scripts/showcase.ts",
-    "study": "tsx scripts/study.ts"
+    "study": "tsx scripts/study.ts",
+    "cutout": "tsx scripts/cutout.ts",
+    "hf": "tsx scripts/hf.ts"
   },
   "dependencies": {
     "@fontsource/bad-script": "5.3.0",
@@ -59,7 +61,9 @@
     "@remotion/media": "4.0.545",
     "@remotion/renderer": "4.0.545",
     "@remotion/zod-types": "4.0.545",
+    "gsap": "3.15.0",
     "heic-convert": "2.1.0",
+    "hyperframes": "0.9.104",
     "pptxgenjs": "4.0.1",
     "react": "19.2.0",
     "react-dom": "19.2.0",

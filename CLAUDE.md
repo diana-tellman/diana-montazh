@@ -64,6 +64,8 @@ ANALYSIS → QUESTIONS → (REFERENCE) → STORYBOARD → FRAME EDITS → APPROV
 | одобрение | `npm run approve -- <id>` (только после слов пользователя) |
 | рендер | `npm run render -- <id> [--max-mb 90]` |
 | showcase (Premium Editorial, подробный бриф) | `npm run showcase -- frames|storyboard|animatic|approve|render <id>` по `storyboard/showcase.json` (`references/editorial-style.md`) |
+| фон с фото (rembg) | `npm run cutout -- <фото|видео> [--t сек]` → RGBA PNG + превью |
+| графика без спикера (HyperFrames) | `npm run hf -- new <папка>` → `snapshot` → одобрение → `render` (без TTS и платных функций HeyGen; `references/tools.md`) |
 | презентация (доп.) | `npm run pptx -- <presentation.json>` → посмотреть `*-preview.jpg`, отправить `.pptx` |
 | обложка | `npm run cover -- <id> --title "… *акцент*" [--word …] [--tag …] [--t …]` |
 | контроль | `npm run qc -- <id>` → посмотреть `output/qc-frames.jpg` |

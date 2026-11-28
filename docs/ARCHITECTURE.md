@@ -222,3 +222,6 @@ CSS-размытие полноэкранного видео в браузере
 - Постеры: роли `label / sans / serif / italic / script`, ширина по оценке ширины глифов, низ кадра сдвигается от кнопок Reels.
 - Одобрение: sha256 файла (без номера версии); `render` отказывается без одобрения актуальной версии. `cover` и `qc` понимают showcase-проекты (`src/showcase/compat.ts`).
 - `npm run study` — исследование любого видео (склейки ffmpeg scene, движение по разнице кадров, громкость ebur128, паузы silencedetect, оценка музыки по уровню в паузах, звуковые удары) → `study.md`, `shots.jpg`, `timeline.png`.
+
+## Инструменты (v5)
+FFmpeg (облако) · Whisper + Silero VAD (sherpa-onnx) · MediaPipe (лицо, силуэт по кадрам) · **rembg** (`npm run cutout`, фон одной картинки, модель u2net_human_seg в `models/rembg`) · Remotion (монтаж и рендер) · **HyperFrames** (`npm run hf`, HTML + GSAP графика без спикера; офлайн: GSAP и шрифты копируются в проект, телеметрия выключена, предустановленный Chromium). Таблица выбора — `.claude/skills/video-director/references/tools.md`.
