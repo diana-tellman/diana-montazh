@@ -5,6 +5,7 @@ import { RenderBenchmark, benchSchema } from "./compositions/RenderBenchmark";
 import { Edit, editSchema, calculateEditMetadata } from "./compositions/Edit";
 import { EXAMPLE_STORYBOARD } from "./storyboard/example";
 import { Cover, coverSchema } from "./compositions/Cover";
+import { Showcase, showcaseProps, calculateShowcaseMetadata } from "./compositions/Showcase";
 
 export const Root: React.FC = () => (
   <>
@@ -18,6 +19,17 @@ export const Root: React.FC = () => (
       durationInFrames={120}
       defaultProps={{ storyboard: EXAMPLE_STORYBOARD, guides: null, useMattes: false }}
       calculateMetadata={calculateEditMetadata}
+    />
+    <Composition
+      id="Showcase"
+      component={Showcase}
+      schema={showcaseProps}
+      width={1080}
+      height={1920}
+      fps={30}
+      durationInFrames={30}
+      defaultProps={{ spec: null as never, matteFrames: 0, sfxDir: "work/sfx", guides: false }}
+      calculateMetadata={calculateShowcaseMetadata}
     />
     <Composition
       id="Cover"
