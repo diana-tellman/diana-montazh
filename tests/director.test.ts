@@ -167,3 +167,12 @@ describe("script emphasis spans", () => {
     expect(r.map((x) => x.emphasis)).toEqual([false, true, true, false, true, true, true]);
   });
 });
+
+describe("Claude headline direction", () => {
+  it("uses the word Claude chose, not the longest one", async () => {
+    const { headlineCard } = await import("../src/plan/director");
+    const words = ws("connect her parent for ever with the race", 9.6);
+    expect(headlineCard(words, "parent")!.items[0]!.text).toBe("parent");
+    expect(headlineCard(words)!.items[0]!.text).not.toBe("parent");
+  });
+});

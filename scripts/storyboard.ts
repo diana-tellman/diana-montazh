@@ -19,6 +19,7 @@ import { bundleFor, renderStills } from "../src/render/stills";
 import type { Storyboard } from "../src/storyboard/schema";
 import { loadFaces, loadStoryboard, previewStamp, revokeApproval, saveStoryboard, storyboardHash } from "../src/storyboard/store";
 import { existsSync } from "node:fs";
+import { buildShotList, shotListMarkdown } from "../src/storyboard/shotlist";
 import { main, out, parseArgs } from "./_cli";
 
 const esc = (s: string) => s.replace(/[&<>"]/g, (c) => ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;" })[c]!);
@@ -102,6 +103,9 @@ main(async () => {
   const st = STYLES[sb.style.preset];
   const sz = safeZone(sb.platform);
   const img = (f: string) => `data:image/jpeg;base64,${readFileSync(f).toString("base64")}`;
+  const shots = buildShotList(sb);
+  writeFileSync(join(p.storyboard, "shotlist.md"), shotListMarkdown(sb));
+  const evs = (e: Array<{ t: number; what: string }>) => (e.length ? e.map((x) => `${fmtT(x.t)} ${esc(x.what)}`).join("<br>") : "—");
   const checkLi = (c: { level: string; message: string }) => `<li class="${c.level}">${c.level === "error" ? "⛔" : c.level === "warn" ? "⚠️" : "✅"} ${esc(c.message)}</li>`;
   const html = `<!doctype html><html lang="kk"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1">
 <title>Сториборд v${sb.version}</title><style>
@@ -119,13 +123,17 @@ h1{font-size:22px;margin:0 0 4px}.meta{color:var(--mut);font-size:14px;margin-bo
 <div class="k">${esc(sb.transcriptNote)}</div></div>
 ${sb.scenes.map((s, i) => `<div class="card"><img src="${img(jobs[i]!.output)}" alt="Сцена ${s.index}">
 <div class="txt">${s.index}. ${fmtT(s.start)}–${fmtT(s.end)} · ${esc(s.title)}</div>
-<div class="k">Текст на экране</div><div>${esc(s.onScreenText).replace(/\*([^*]+)\*/g, "<b style='color:var(--acc)'>$1</b>") || "—"}</div>
+<div class="k">Экранда</div><div>${esc(shots[i]!.screen)}</div>
+<div class="k">Айтылады</div><div>${esc(shots[i]!.spoken) || "—"}</div>
+<div class="k">Мәтін шығады</div><div>${evs(shots[i]!.texts)}</div>
+<div class="k">Кадр ішінде</div><div>${evs(shots[i]!.changes)}</div>
+<div class="k">Келесіге өту</div><div>${esc(shots[i]!.transition)}</div>
 <div class="k">Камера</div><div>${esc(s.camera)}</div>
 <div class="k">Анимация</div><div>${esc(s.animation)}</div>
 <div class="k">Звук</div><div>${esc(s.sfx)}</div>
 ${s.checks.length ? `<ul>${s.checks.map(checkLi).join("")}</ul>` : ""}</div>`).join("")}
-<div class="card ask"><b>Что дальше?</b><br>Напишите <b>«Мақұлдаймын / Одобряю»</b> — и я сделаю финальное видео и обложку.<br>
-Или правку: «3-сахнадағы мәтінді жоғары көтер», «Сделай текст красным и белым», «Убери анимацию за головой», «Исправь слово … на …».</div>
+<div class="card ask"><b>Әрі қарай?</b><br><b>«Монтажды бастау»</b> (немесе «Мақұлдаймын») — финал видео мен мұқабаны жасаймын.<br>
+<b>«Кадрды өзгерту»</b> — мысалы: «3-кадрды өзгерт: мәтінді жоғары көтер», «2-кадрда мені шеңберге сал», «… сөзін … деп түзет».</div>
 </body></html>`;
   writeFileSync(join(p.storyboard, "storyboard.html"), html);
   writeFileSync(previewStamp(id), JSON.stringify({ hash: storyboardHash(sb), version: sb.version, at: new Date().toISOString() }));
@@ -134,7 +142,7 @@ ${s.checks.length ? `<ul>${s.checks.map(checkLi).join("")}</ul>` : ""}</div>`).j
   if (changed && project.status !== "storyboard_draft" && canTransition(project.mode, project.status, "storyboard_draft")) project = transition(project, "storyboard_draft", `Сториборд v${sb.version} (правка)`);
   saveProject(project);
   out({
-    id, version: sb.version, approvalRevoked: revoked, contactSheet: sheet, html: join(p.storyboard, "storyboard.html"),
+    id, version: sb.version, approvalRevoked: revoked, contactSheet: sheet, html: join(p.storyboard, "storyboard.html"), shotlist: join(p.storyboard, "shotlist.md"),
     errors: sb.checks.filter((c) => c.level === "error").map((c) => c.message), warnings: sb.checks.filter((c) => c.level === "warn").map((c) => c.message),
   });
 });

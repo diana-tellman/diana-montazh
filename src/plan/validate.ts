@@ -30,7 +30,12 @@ export function faceBoxesAt(sb: Storyboard, faces: Faces | null, t: number, pad 
 export function validateStoryboard(sb: Storyboard, faces: Faces | null, baseChecks: Check[] = []): Check[] {
   const st = resolveStyle(sb.style.preset, sb.style.overrides);
   const safe = safeZone(sb.platform);
-  const checks: Check[] = baseChecks.filter((c) => !["caption_face", "caption_safe", "caption_small", "timing", "behind_safe", "card_overlap", "plate_face", "audio_balance"].includes(c.code));
+  const checks: Check[] = baseChecks.filter((c) => !["caption_face", "caption_safe", "caption_small", "timing", "behind_safe", "card_overlap", "plate_face", "audio_balance", "caption_overlap"].includes(c.code));
+  // Two captions on screen at once = text drawn over text.
+  const byStart = [...sb.captions].sort((a, b) => a.start - b.start);
+  byStart.slice(1).forEach((c, i) => {
+    if (byStart[i]!.end > c.start + 0.02) checks.push({ level: "error", code: "caption_overlap", at: c.start, message: `Субтитры накладываются друг на друга около ${c.start.toFixed(1)} с.` });
+  });
   const px0 = st.size * Math.min(sb.width, sb.height);
   for (const c of sb.captions) {
     const text = c.lines.map((l) => l.map((w) => w.text).join(" "));

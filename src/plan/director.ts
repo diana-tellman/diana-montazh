@@ -174,12 +174,13 @@ export function splitList(ws: TWord[]): Array<{ text: string; at: number }> {
 }
 
 /** Headline card from one phrase: small label / BIG keyword / script tail (reference poster typography). */
-export function headlineCard(ws: TWord[]): Card | null {
+export function headlineCard(ws: TWord[], forced?: string): Card | null {
   const content = ws.filter((w) => { const k = clean(w.text); return k.length >= 3 && !STOP.has(k); });
   if (!content.length) return null;
   // Prefer the speaker's *emphasis*, then nouns/numbers over verb forms (kk/ru/en verb endings), then the longest word.
   const verb = (t: string) => /(мын|мін|быз|біз|сың|сің|сыз|сіз|ды|ді|ты|ті|ған|ген|қан|кен|йды|йді|йсың|йсің|ады|еді|ть|ешь|ете|ем|ют|ут|ит|ал|ла|ли|ing|ed)$/u.test(clean(t));
-  const key = content.find((w) => w.emphasis) ?? [...content].sort((a, b) => Number(verb(a.text)) - Number(verb(b.text)) || b.text.length - a.text.length)[0]!;
+  const f = forced ? clean(forced.split(/\s+/)[0] ?? "") : "";
+  const key = (f ? ws.find((w) => clean(w.text) === f) ?? ws.find((w) => clean(w.text).startsWith(f.slice(0, 5))) : undefined) ?? content.find((w) => w.emphasis) ?? [...content].sort((a, b) => Number(verb(a.text)) - Number(verb(b.text)) || b.text.length - a.text.length)[0]!;
   const i = ws.indexOf(key);
   const strip = (t: string) => t.replace(/^[«"(*]+|[»".,!?:;)*…—-]+$/gu, "");
   const before = ws.slice(Math.max(0, i - 4), i).map((w) => strip(w.text)).join(" ");
@@ -377,6 +378,7 @@ export function directionsToBeats(d: Directions, phrases: TWord[][]): DirectorBe
         : b.intent === "process" ? extractSteps(phrases.slice(p0, p1 + 1)) : b.intent === "compare" ? splitCompare(ws) : [contentLabel(ws, 3)].filter((x): x is { text: string; at: number } => !!x);
       card = { variant: b.variant && b.variant !== "counter" && b.variant !== "headline" ? b.variant : b.intent === "process" ? "steps" : b.intent, title: b.title ?? "", items: items.slice(0, b.intent === "compare" ? 2 : 4).map((x) => ({ text: x.text, icon: iconFor(x.text), at: Math.max(s, x.at) })) };
     }
+    if (!card && b.variant === "headline") card = headlineCard(ws, b.items?.[0]);
     out.push({ p0, p1, intent: b.intent, reason: b.reason || "Claude: мағынасы бойынша", card, shape: b.shape, plate: b.plate ?? (b.intent === "key" || b.intent === "cta" ? contentLabel(ws, 4)?.text : undefined), source: "claude", w0: ws[0], w1: ws.at(-1) });
   }
   return out;

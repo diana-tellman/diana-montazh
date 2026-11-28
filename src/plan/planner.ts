@@ -227,7 +227,9 @@ export function buildStoryboard(inp: PlanInput, version = 1): Storyboard {
     const nextStart = phrases[i + 1]?.[0]!.start ?? duration;
     const lastEnd = p.at(-1)!.end;
     const end = nextStart - lastEnd < 1.0 ? Math.max(nextStart - 0.05, start + 0.5) : Math.min(nextStart, Math.max(lastEnd + 0.35, start + 1.0));
-    return { start, end };
+    // Never overlap the next caption (it starts at nextStart − 0.05): one-word styles have words < 0.5 s apart.
+    const next = phrases[i + 1] ? Math.max(0, nextStart - 0.05) : duration;
+    return { start, end: Math.max(Math.min(end, next), Math.min(start + 0.1, next)) };
   };
 
   // ---------- meaning → beats (what is said decides how the frame is built) ----------
@@ -258,7 +260,8 @@ export function buildStoryboard(inp: PlanInput, version = 1): Storyboard {
   let usedSec = 0;
   if (semantic) {
     for (const b of beats) {
-      if (!b.card || !(b.intent === "example" || b.intent === "compare" || b.intent === "process" || b.intent === "list" || (b.intent === "number" && !hasPerson))) continue;
+      const claudeHeadline = b.source === "claude" && b.card?.variant === "headline" && !hasPerson;
+      if (!b.card || !(claudeHeadline || b.intent === "example" || b.intent === "compare" || b.intent === "process" || b.intent === "list" || (b.intent === "number" && !hasPerson))) continue;
       const start = r3(cwStart(bFirst(b)));
       const end = r3(Math.min(duration, cwEnd(bLast(b))));
       if (end - start < 1.2 || layouts.some((l) => start < l.end && end > l.start)) continue;

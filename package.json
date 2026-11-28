@@ -29,7 +29,10 @@
     "reference": "tsx scripts/reference.ts",
     "status": "tsx scripts/status.ts",
     "smoke": "tsx scripts/smoke.ts",
-    "bench": "tsx scripts/bench.ts"
+    "bench": "tsx scripts/bench.ts",
+    "scene": "tsx scripts/scene.ts",
+    "pptx": "tsx scripts/pptx.ts",
+    "voice-script": "tsx scripts/voice-script.ts"
   },
   "dependencies": {
     "@fontsource/bad-script": "5.3.0",
@@ -53,6 +56,7 @@
     "@remotion/renderer": "4.0.545",
     "@remotion/zod-types": "4.0.545",
     "heic-convert": "2.1.0",
+    "pptxgenjs": "4.0.1",
     "react": "19.2.0",
     "react-dom": "19.2.0",
     "remotion": "4.0.545",
