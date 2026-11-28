@@ -103,6 +103,59 @@ main(async () => {
     return;
   }
 
+  if (cmd === "breakdown") {
+    // "Molecular" breakdown of the edit: every layer (tracks) with exact seconds, fonts, sizes, animations and sounds.
+    const ROLEF: Record<string, string> = { sans: "Inter Tight 900", label: "Inter Tight 700 КАПС", serif: "Cormorant 600", italic: "Cormorant 700 italic", script: "Bad Script" };
+    const tracks: Array<{ track: string; a: number; b: number; what: string }> = [];
+    for (const k of spec.zoom) tracks.push({ track: "V1 камера", a: k.move === "ease" ? k.t - k.dur : k.t, b: k.t, what: `${k.move === "cut" ? "кесіп өту" : "жұмсақ"} → ${Math.round(k.zoom * 100)}% (центр ${k.ax.toFixed(2)}, ${k.ay.toFixed(2)})` });
+    for (const e of spec.effects) {
+      if (e.type === "poster") {
+        e.items.forEach((it) => tracks.push({ track: e.behind && !it.front ? "V3 мәтін артта" : "V5 мәтін алдында", a: it.at, b: e.end, what: `«${it.text}» · ${ROLEF[it.role]} · ${Math.round(it.size * 1080)}px · ${it.color} · анимация ${it.anim}${it.rotate ? ` · ${it.rotate}°` : ""}${it.underline ? " · сызық" : ""}${e.bg !== "none" ? ` · фон ${e.bg}` : ""}` }));
+      } else if (e.type === "background") tracks.push({ track: "V2 фон", a: e.wipeAt, b: e.end, what: `${e.texture ? "графит фактура" : e.color} · шекара ${e.wipe === "up" ? "төменнен жоғары" : "солдан оңға"} ${e.wipeDur}с${e.compare ? ` · салыстыру ${e.compare[0]}–${e.compare[1]}` : ""}${e.slideX ? ` · жылжу ${e.slideX}px` : ""}` });
+      else if (e.type === "contour") tracks.push({ track: "V4 силуэт", a: e.start, b: e.end, what: `ақ контур ${e.width}px, сызылуы ${e.drawDur}с` });
+      else if (e.type === "behind") tracks.push({ track: "V3 мәтін артта", a: e.start, b: e.end, what: `«${e.text}» ${e.size}px ${e.anim}` });
+      else if (e.type === "label") tracks.push({ track: "T субтитр/жазу", a: e.start, b: e.end, what: e.words.map((w) => `${w.text}@${w.at}`).join(" ") + (e.icon ? ` · иконка ${e.icon}` : "") });
+      else if (e.type === "transition") tracks.push({ track: "V6 ауысу", a: e.start, b: e.end, what: `${e.style}${e.text ? ` «${e.text}»` : ""}` });
+      else if (e.type === "split") tracks.push({ track: "V2 фон", a: e.start, b: e.end, what: `экран бөлінеді: жоғарыда графит панель ${Math.round(e.panel * 100)}%` });
+      else if (e.type === "mono") tracks.push({ track: "V1 камера", a: e.start, b: e.end, what: "ақ-қара" });
+      else if (e.type === "sweep") tracks.push({ track: "V2 фон", a: e.start, b: e.end, what: "жарық жолағы" });
+      else if (e.type === "schema") tracks.push({ track: "V5 мәтін алдында", a: e.start, b: e.end, what: `схема ${e.items.map((x) => `${x.label}@${x.at}`).join(" → ")}` });
+      else tracks.push({ track: "V5 мәтін алдында", a: e.start, b: e.end, what: e.type });
+    }
+    for (const c of spec.captions) tracks.push({ track: "T субтитр/жазу", a: c.start, b: c.end, what: c.text });
+    tracks.push({ track: "A1 дауыс", a: 0, b: spec.srcDuration, what: "түпнұсқа дауыс (тек тазалау, тембр сол)" });
+    tracks.push({ track: "A2 музыка", a: 0, b: 0, what: "жоқ" });
+    for (const x of spec.sfx) tracks.push({ track: "A3 SFX", a: x.t, b: x.t, what: `${x.kind} · ${Math.round(20 * Math.log10(Math.max(1e-3, x.gain)))} дБ` });
+    tracks.sort((x, y) => x.a - y.a || x.track.localeCompare(y.track));
+    const shotsMd = spec.shots.map((s, i) => {
+      const inS = tracks.filter((x) => (x.a >= s.start - 0.01 && x.a < s.end) || (x.a < s.start && x.b > s.start && x.track !== "A1 дауыс"));
+      return `## ${i + 1}-кадр · ${fmt(s.start)}–${fmt(s.end)}\n**Айтылады:** ${s.spoken}\n\n| с | жол | не болады |\n|---|---|---|\n${inS.map((x) => `| ${x.a.toFixed(2)} | ${x.track} | ${x.what} |`).join("\n")}\n`;
+    }).join("\n");
+    const head = `# Монтаж breakdown v${spec.version}\nЖолдар: V1 камера/видео · V2 фон · V3 мәтін артта (адамның артында) · V4 силуэт · V5 мәтін/графика алдында · V6 ауысу · T субтитр · A1 дауыс · A2 музыка · A3 SFX\n\n`;
+    writeFileSync(join(p.storyboard, "breakdown.md"), head + shotsMd);
+    // tracks picture
+    const names = ["V1 камера", "V2 фон", "V3 мәтін артта", "V4 силуэт", "V5 мәтін алдында", "V6 ауысу", "T субтитр/жазу", "A3 SFX"];
+    const dur = showcaseDuration(spec);
+    const TW = 1600;
+    const X = (t: number) => 150 + (t / dur) * (TW - 170);
+    const colors = ["#7d8fb3", "#6f6f6f", "#F2D5E4", "#ffffff", "#c9a3b4", "#8D263E", "#9fd3a8", "#ffd27a"];
+    let svg = `<svg xmlns="http://www.w3.org/2000/svg" width="${TW}" height="${names.length * 44 + 40}"><rect width="100%" height="100%" fill="#141414"/>`;
+    names.forEach((n, r) => {
+      const y = 10 + r * 44;
+      svg += `<text x="8" y="${y + 24}" font-size="17" fill="#bbb" font-family="Inter,sans-serif">${n}</text>`;
+      tracks.filter((x) => x.track === n).forEach((x) => {
+        if (n === "A3 SFX") svg += `<line x1="${X(x.a)}" y1="${y + 4}" x2="${X(x.a)}" y2="${y + 34}" stroke="${colors[r]}" stroke-width="3"/><text x="${X(x.a) + 3}" y="${y + 14}" font-size="11" fill="#ffd27a">${esc(x.what.split(" ")[0]!)}</text>`;
+        else svg += `<rect x="${X(x.a)}" y="${y + 4}" width="${Math.max(3, X(x.b) - X(x.a))}" height="30" rx="4" fill="${colors[r]}" fill-opacity="0.75"/><text x="${X(x.a) + 3}" y="${y + 24}" font-size="12" fill="#111">${esc((x.what.match(/«([^»]+)»/)?.[1] ?? x.what).slice(0, 18))}</text>`;
+      });
+    });
+    for (let t = 0; t <= dur; t += 1) svg += `<line x1="${X(t)}" y1="0" x2="${X(t)}" y2="${t % 5 === 0 ? names.length * 44 + 20 : 6}" stroke="#333"/>${t % 5 === 0 ? `<text x="${X(t) + 2}" y="${names.length * 44 + 34}" font-size="13" fill="#888">${t}s</text>` : ""}`;
+    svg += "</svg>";
+    const png = join(p.storyboard, "breakdown-tracks.png");
+    await sharp(Buffer.from(svg)).png().toFile(png);
+    out({ md: join(p.storyboard, "breakdown.md"), tracks: png, layers: tracks.length });
+    return;
+  }
+
   if (cmd === "frames") {
     const ts = (pos[2] ?? "").split(",").map(Number).filter((x) => Number.isFinite(x));
     const serveUrl = await bundleFor(p.root);
