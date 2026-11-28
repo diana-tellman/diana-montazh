@@ -20,6 +20,10 @@ export const SFX_RECIPES: Record<string, string> = {
   type: "aevalsrc='0.7*sin(2*PI*2600*mod(t,0.085))*exp(-mod(t,0.085)*260)*(0.6+0.4*sin(t*53))':s=48000:d=0.6,afade=t=out:st=0.5:d=0.1",
   ding: "aevalsrc='0.5*sin(2*PI*1318*t)*exp(-t*6)+0.35*sin(2*PI*1975*t)*exp(-t*8)':s=48000:d=0.7",
   tickroll: "aevalsrc='0.6*sin(2*PI*3000*mod(t,0.06))*exp(-mod(t,0.06)*300)*(1-t/0.8)':s=48000:d=0.8",
+  reveal: "anoisesrc=d=0.7:color=pink:a=0.6:r=48000,bandpass=f=900:w=1.5,afade=t=in:d=0.45:curve=exp,afade=t=out:st=0.45:d=0.25",
+  tonal: "aevalsrc='0.55*sin(2*PI*660*t)*exp(-t*5)+0.3*sin(2*PI*990*t)*exp(-t*7)+0.15*sin(2*PI*1320*t)*exp(-t*9)':s=48000:d=0.8",
+  sweep: "anoisesrc=d=0.6:color=white:a=0.6:r=48000,highpass=f=1200,lowpass=f=7000,afade=t=in:d=0.25,afade=t=out:st=0.25:d=0.35",
+  trace: "aevalsrc='0.35*sin(2*PI*(1500*t+900*t*t))*(0.5+0.5*sin(2*PI*14*t))':s=48000:d=0.8,afade=t=in:d=0.08,afade=t=out:st=0.6:d=0.2",
   impact: "aevalsrc='0.9*sin(2*PI*(70*t-40*t*t))*exp(-t*7)+0.25*(random(0)-0.5)*exp(-t*25)':s=48000:d=0.6",
 };
 

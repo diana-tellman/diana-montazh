@@ -13,6 +13,7 @@ import { loadProject, pathsFor, saveProject } from "../src/core/store";
 import { hasReached, transition } from "../src/core/state";
 import { bundleFor, renderStills } from "../src/render/stills";
 import { loadFaces, loadStoryboard } from "../src/storyboard/store";
+import { loadShowcase, showcaseAsStoryboard } from "../src/showcase/compat";
 import { main, out, parseArgs, str } from "./_cli";
 
 main(async () => {
@@ -21,7 +22,8 @@ main(async () => {
   let project = loadProject(id);
   if (!hasReached(project, "rendered")) throw new Error("Обложка делается только после успешного финального рендера.");
   const p = pathsFor(id);
-  const sb = loadStoryboard(id);
+  const sc = loadShowcase(id);
+  const sb = sc ? showcaseAsStoryboard(sc) : loadStoryboard(id);
   const faces = loadFaces(id);
   const log = (s: string) => console.error(s);
   const dir = join(p.output, "cover-work");

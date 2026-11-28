@@ -13,6 +13,7 @@ import { probe } from "../src/core/media";
 import { loadProject, pathsFor, saveProject } from "../src/core/store";
 import { canTransition, transition } from "../src/core/state";
 import { loadStoryboard, readApproval, storyboardHash } from "../src/storyboard/store";
+import { loadShowcase, readShowcaseApproval, showcaseAsStoryboard, showcaseHash } from "../src/showcase/compat";
 import { main, out, parseArgs } from "./_cli";
 
 const run = promisify(execFile);
@@ -32,15 +33,17 @@ main(async () => {
   const { pos } = parseArgs();
   const id = pos[0] ?? "";
   const p = pathsFor(id);
-  const sb = loadStoryboard(id);
+  const sc = loadShowcase(id);
+  const sb = sc ? showcaseAsStoryboard(sc) : loadStoryboard(id);
   const final = join(p.output, "final-video.mp4");
   const cover = join(p.output, "cover.png");
   const items: Item[] = [];
   const add = (ok: boolean, name: string, detail: string) => items.push({ ok, name, detail });
 
-  const approval = readApproval(id);
+  const approval = sc ? readShowcaseApproval(id) : readApproval(id);
+  const currentHash = sc ? showcaseHash(sc) : storyboardHash(sb);
   const rendered = existsSync(join(p.output, "render.json")) ? (JSON.parse(readFileSync(join(p.output, "render.json"), "utf8")) as { hash: string; version: number }) : null;
-  add(!!approval && approval.hash === storyboardHash(sb), "Сториборд одобрен", approval ? `v${approval.version}` : "нет одобрения");
+  add(!!approval && approval.hash === currentHash, "Сториборд одобрен", approval ? `v${approval.version}` : "нет одобрения");
   add(!!rendered && rendered.hash === approval?.hash, "Видео соответствует одобренной версии", rendered ? `рендер v${rendered.version}` : "нет рендера");
   const sbErrors = sb.checks.filter((c) => c.level === "error");
   add(sbErrors.length === 0, "Текст не перекрывает лицо, в безопасной зоне", sbErrors.length ? sbErrors.map((e) => e.message).join("; ") : "проверено по всем субтитрам");
@@ -52,7 +55,7 @@ main(async () => {
     add(v?.codec === "h264" && v.pixFmt === "yuv420p", "Кодек H.264 yuv420p", `${v?.codec} ${v?.pixFmt}`);
     add(v?.width === sb.width && v.height === sb.height, "Разрешение", `${v?.width}×${v?.height} (нужно ${sb.width}×${sb.height})`);
     add(!!v && Math.abs(v.fps - sb.fps) < 0.05 && !v.variableFrameRate, "Частота кадров", `${v?.fps} fps`);
-    add(Math.abs(m.durationSec - sb.durationSec) < 0.15, "Длительность = длительности голоса", `${m.durationSec.toFixed(2)} с / ${sb.durationSec.toFixed(2)} с`);
+    add(Math.abs(m.durationSec - sb.durationSec) < 0.15, sc ? "Длительность = голос + стоп-кадр" : "Длительность = длительности голоса", `${m.durationSec.toFixed(2)} с / ${sb.durationSec.toFixed(2)} с`);
     add(m.audio?.codec === "aac" && m.audio.sampleRate === 48000, "Звук AAC 48 кГц", `${m.audio?.codec} ${m.audio?.sampleRate}`);
     add(v?.colorPrimaries === "bt709" || v?.colorPrimaries === "unknown", "Цвет SDR BT.709", v?.colorPrimaries ?? "");
     add(moovFirst(final), "Быстрый старт (faststart)", "moov в начале файла");

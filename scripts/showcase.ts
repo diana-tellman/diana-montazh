@@ -13,7 +13,6 @@
  *   frames <id> t1,t2,…    full-size stills at given seconds for self-checking (work/check-*.jpg)
  */
 import { execFile } from "node:child_process";
-import { createHash } from "node:crypto";
 import { copyFileSync, existsSync, mkdirSync, readdirSync, readFileSync, statSync, writeFileSync } from "node:fs";
 import { join } from "node:path";
 import { promisify } from "node:util";
@@ -31,7 +30,7 @@ const run = promisify(execFile);
 const fmt = (t: number) => `${Math.floor(t / 60)}:${(t % 60).toFixed(1).padStart(4, "0")}`;
 const esc = (s: string) => s.replace(/[&<>"]/g, (c) => ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;" })[c]!);
 
-export const showcaseHash = (s: Showcase) => createHash("sha256").update(JSON.stringify({ ...s, version: 0 })).digest("hex");
+import { showcaseHash } from "../src/showcase/compat";
 
 function load(id: string) {
   const p = pathsFor(id);

@@ -1,0 +1,840 @@
+{
+ "schema": 1,
+ "projectId": "claude-montazh-20261128-cznm",
+ "version": 4,
+ "width": 1080,
+ "height": 1920,
+ "fps": 30,
+ "video": "work/video-01.mp4",
+ "voice": "work/voice-enhanced.wav",
+ "matteDir": "work/matte/full",
+ "srcDuration": 28.3,
+ "freezeSec": 1.2,
+ "lastFrame": "work/last.jpg",
+ "colors": {
+  "accent": "#701D35",
+  "dark": "#111111",
+  "light": "#FFFFFF"
+ },
+ "fonts": {
+  "display": "Noto Sans Display",
+  "text": "Noto Sans"
+ },
+ "zoom": [
+  {
+   "t": 0,
+   "zoom": 1.4,
+   "ax": 0.481,
+   "ay": 0.296,
+   "move": "cut",
+   "dur": 0.9
+  },
+  {
+   "t": 2.77,
+   "zoom": 1,
+   "ax": 0.524,
+   "ay": 0.309,
+   "move": "ease",
+   "dur": 0.35
+  },
+  {
+   "t": 9.15,
+   "zoom": 1.22,
+   "ax": 0.501,
+   "ay": 0.336,
+   "move": "cut",
+   "dur": 0.9
+  },
+  {
+   "t": 10.42,
+   "zoom": 1,
+   "ax": 0.501,
+   "ay": 0.336,
+   "move": "cut",
+   "dur": 0.9
+  },
+  {
+   "t": 14.85,
+   "zoom": 1.25,
+   "ax": 0.523,
+   "ay": 0.327,
+   "move": "cut",
+   "dur": 0.9
+  },
+  {
+   "t": 16.19,
+   "zoom": 1.37,
+   "ax": 0.523,
+   "ay": 0.327,
+   "move": "ease",
+   "dur": 0.15
+  },
+  {
+   "t": 16.8,
+   "zoom": 1.25,
+   "ax": 0.523,
+   "ay": 0.327,
+   "move": "ease",
+   "dur": 0.5
+  },
+  {
+   "t": 18.45,
+   "zoom": 1,
+   "ax": 0.507,
+   "ay": 0.347,
+   "move": "cut",
+   "dur": 0.9
+  },
+  {
+   "t": 24,
+   "zoom": 1.15,
+   "ax": 0.501,
+   "ay": 0.367,
+   "move": "cut",
+   "dur": 0.9
+  }
+ ],
+ "effects": [
+  {
+   "type": "poster",
+   "start": 0.3,
+   "end": 2.4,
+   "anchorY": 0.185,
+   "behind": false,
+   "bg": "shade-top",
+   "maxWidth": 0.74,
+   "exit": "up",
+   "items": [
+    {
+     "text": "Claude арқылы",
+     "role": "label",
+     "size": 0.045,
+     "at": 0.38,
+     "color": "milk",
+     "anim": "word",
+     "words": [
+      0.38,
+      0.6
+     ]
+    },
+    {
+     "text": "монтаж жасап жүрсің",
+     "role": "italic",
+     "size": 0.1,
+     "at": 0.95,
+     "color": "milk",
+     "anim": "word",
+     "words": [
+      0.95,
+      1.52,
+      1.6
+     ]
+    }
+   ]
+  },
+  {
+   "type": "poster",
+   "start": 2.42,
+   "end": 4.8,
+   "anchorY": 0.165,
+   "behind": true,
+   "bg": "shade-top",
+   "maxWidth": 0.74,
+   "exit": "up",
+   "items": [
+    {
+     "text": "БАРЛЫҚ",
+     "role": "sans",
+     "size": 0.22,
+     "at": 2.5,
+     "color": "pink",
+     "anim": "stagger"
+    },
+    {
+     "text": "МҮМКІНДІГІН",
+     "role": "sans",
+     "size": 0.13,
+     "at": 2.84,
+     "color": "pink",
+     "anim": "stagger"
+    },
+    {
+     "text": "пайдаланып жүрсің бе?",
+     "role": "script",
+     "size": 0.072,
+     "at": 3.53,
+     "color": "milk",
+     "anim": "word",
+     "words": [
+      3.53,
+      3.99,
+      4.33
+     ],
+     "y": 0.575,
+     "front": true,
+     "rotate": -3
+    }
+   ]
+  },
+  {
+   "type": "background",
+   "start": 4.85,
+   "end": 9.15,
+   "color": "#191919",
+   "texture": true,
+   "wipe": "up",
+   "wipeAt": 4.86,
+   "wipeDur": 0.4,
+   "compare": [
+    5.9,
+    7.6
+   ],
+   "fadeOut": 0.35
+  },
+  {
+   "type": "poster",
+   "start": 4.87,
+   "end": 5.85,
+   "anchorY": 0.185,
+   "behind": true,
+   "bg": "none",
+   "maxWidth": 0.74,
+   "exit": "up",
+   "items": [
+    {
+     "text": "ФОНДЫ",
+     "role": "sans",
+     "size": 0.21,
+     "at": 4.89,
+     "color": "pink",
+     "anim": "stagger"
+    },
+    {
+     "text": "ауыстыру",
+     "role": "script",
+     "size": 0.1,
+     "at": 5.2,
+     "color": "milk",
+     "anim": "script",
+     "rotate": -5,
+     "dx": 0.12
+    }
+   ]
+  },
+  {
+   "type": "poster",
+   "start": 5.9,
+   "end": 7.6,
+   "anchorY": 0.185,
+   "behind": true,
+   "bg": "none",
+   "maxWidth": 0.74,
+   "exit": "up",
+   "items": [
+    {
+     "text": "АДАМДЫ",
+     "role": "sans",
+     "size": 0.15,
+     "at": 5.9,
+     "color": "pink",
+     "anim": "mask"
+    },
+    {
+     "text": "фоннан бөліп алу",
+     "role": "italic",
+     "size": 0.09,
+     "at": 6.37,
+     "color": "milk",
+     "anim": "word",
+     "words": [
+      6.37,
+      6.76,
+      7.07
+     ]
+    }
+   ]
+  },
+  {
+   "type": "contour",
+   "start": 8.12,
+   "drawDur": 0.75,
+   "end": 9.05,
+   "width": 7,
+   "fromDeg": 296,
+   "cx": 540,
+   "cy": 900
+  },
+  {
+   "type": "poster",
+   "start": 8.1,
+   "end": 9.1,
+   "anchorY": 0.185,
+   "behind": true,
+   "bg": "none",
+   "maxWidth": 0.74,
+   "exit": "up",
+   "items": [
+    {
+     "text": "ақ контур",
+     "role": "italic",
+     "size": 0.13,
+     "at": 8.12,
+     "color": "milk",
+     "anim": "script"
+    },
+    {
+     "text": "жасау",
+     "role": "label",
+     "size": 0.04,
+     "at": 8.69,
+     "color": "milk",
+     "anim": "tracking"
+    }
+   ]
+  },
+  {
+   "type": "label",
+   "start": 9.15,
+   "end": 10.42,
+   "y": 1330,
+   "x": 470,
+   "size": 56,
+   "words": [
+    {
+     "text": "Автоматты",
+     "at": 9.18
+    },
+    {
+     "text": "субтитр",
+     "at": 9.82
+    }
+   ],
+   "underlineWord": 1,
+   "underlineAt": 9.85,
+   "icon": "cc",
+   "iconAt": 9.85
+  },
+  {
+   "type": "poster",
+   "start": 10.42,
+   "end": 11.85,
+   "anchorY": 0.46,
+   "behind": false,
+   "bg": "texture",
+   "maxWidth": 0.74,
+   "exit": "up",
+   "items": [
+    {
+     "text": "МӘТІН",
+     "role": "sans",
+     "size": 0.3,
+     "at": 10.46,
+     "color": "pink",
+     "anim": "stagger"
+    },
+    {
+     "text": "анимациялар",
+     "role": "italic",
+     "size": 0.15,
+     "at": 10.96,
+     "color": "milk",
+     "anim": "script",
+     "rotate": -3
+    }
+   ]
+  },
+  {
+   "type": "transition",
+   "start": 11.72,
+   "end": 12.02,
+   "style": "whip"
+  },
+  {
+   "type": "split",
+   "start": 11.85,
+   "end": 14.85,
+   "panel": 0.45
+  },
+  {
+   "type": "poster",
+   "start": 12.1,
+   "end": 14.8,
+   "anchorY": 0.185,
+   "behind": false,
+   "bg": "none",
+   "maxWidth": 0.74,
+   "exit": "up",
+   "items": [
+    {
+     "text": "түсіндірмелі",
+     "role": "label",
+     "size": 0.04,
+     "at": 12.16,
+     "color": "milk",
+     "anim": "tracking"
+    },
+    {
+     "text": "графикалар",
+     "role": "italic",
+     "size": 0.1,
+     "at": 13.09,
+     "color": "milk",
+     "anim": "script"
+    }
+   ]
+  },
+  {
+   "type": "schema",
+   "start": 11.95,
+   "end": 14.8,
+   "y": 576,
+   "items": [
+    {
+     "icon": "frame",
+     "label": "Кадр",
+     "at": 12.16
+    },
+    {
+     "icon": "T",
+     "label": "Мәтін",
+     "at": 12.65
+    },
+    {
+     "icon": "play",
+     "label": "Нәтиже",
+     "at": 13.09
+    }
+   ]
+  },
+  {
+   "type": "sweep",
+   "start": 14.9,
+   "end": 15.8,
+   "dur": 0.9
+  },
+  {
+   "type": "poster",
+   "start": 14.88,
+   "end": 16.9,
+   "anchorY": 0.185,
+   "behind": false,
+   "bg": "shade-top",
+   "maxWidth": 0.74,
+   "exit": "up",
+   "items": [
+    {
+     "text": "видео және дыбыстық",
+     "role": "italic",
+     "size": 0.08,
+     "at": 14.9,
+     "color": "milk",
+     "anim": "word",
+     "words": [
+      14.9,
+      15.19,
+      15.47
+     ]
+    },
+    {
+     "text": "ЭФФЕКТІЛЕР",
+     "role": "sans",
+     "size": 0.15,
+     "at": 16.04,
+     "color": "pink",
+     "anim": "scale"
+    }
+   ]
+  },
+  {
+   "type": "mono",
+   "start": 15.95,
+   "end": 16.45
+  },
+  {
+   "type": "poster",
+   "start": 17.2,
+   "end": 18,
+   "anchorY": 0.17,
+   "behind": false,
+   "bg": "shade-top",
+   "maxWidth": 0.74,
+   "exit": "up",
+   "items": [
+    {
+     "text": "кадр арасындағы",
+     "role": "italic",
+     "size": 0.085,
+     "at": 17.25,
+     "color": "milk",
+     "anim": "word",
+     "words": [
+      17.25,
+      17.53
+     ]
+    }
+   ]
+  },
+  {
+   "type": "transition",
+   "start": 17.95,
+   "end": 18.95,
+   "style": "type",
+   "text": "АУЫСУЛАР"
+  },
+  {
+   "type": "poster",
+   "start": 18.45,
+   "end": 24,
+   "anchorY": 0.635,
+   "behind": false,
+   "bg": "mono",
+   "maxWidth": 0.74,
+   "exit": "up",
+   "items": [
+    {
+     "text": "осының барлығын",
+     "role": "label",
+     "size": 0.045,
+     "at": 18.95,
+     "color": "milk",
+     "anim": "word",
+     "words": [
+      18.95,
+      19.45
+     ]
+    },
+    {
+     "text": "БІР СТИЛЬДЕ",
+     "role": "sans",
+     "size": 0.13,
+     "at": 21.44,
+     "color": "pink",
+     "anim": "stagger"
+    },
+    {
+     "text": "кәсіби",
+     "role": "italic",
+     "size": 0.14,
+     "at": 22.15,
+     "color": "milk",
+     "anim": "script",
+     "rotate": -4,
+     "dx": -0.17
+    },
+    {
+     "text": "МОНТАЖ",
+     "role": "sans",
+     "size": 0.2,
+     "at": 22.3,
+     "color": "pink",
+     "anim": "scale",
+     "underline": true
+    }
+   ]
+  },
+  {
+   "type": "transition",
+   "start": 23.88,
+   "end": 24.12,
+   "style": "flash"
+  },
+  {
+   "type": "poster",
+   "start": 25.6,
+   "end": 29.5,
+   "anchorY": 0.66,
+   "behind": false,
+   "bg": "shade-bottom",
+   "maxWidth": 0.74,
+   "exit": "fade",
+   "items": [
+    {
+     "text": "білгің келсе",
+     "role": "label",
+     "size": 0.042,
+     "at": 25.7,
+     "color": "milk",
+     "anim": "word",
+     "words": [
+      25.7,
+      26.15
+     ]
+    },
+    {
+     "text": "КОММЕНТАРИЙГЕ",
+     "role": "sans",
+     "size": 0.11,
+     "at": 26.61,
+     "color": "pink",
+     "anim": "stagger"
+    },
+    {
+     "text": "CLAUDE",
+     "role": "italic",
+     "size": 0.19,
+     "at": 27.38,
+     "color": "milk",
+     "anim": "script"
+    },
+    {
+     "text": "сөзін жаз",
+     "role": "label",
+     "size": 0.04,
+     "at": 27.64,
+     "color": "milk",
+     "anim": "tracking"
+    }
+   ]
+  }
+ ],
+ "captions": [],
+ "sfx": [
+  {
+   "t": 0.36,
+   "kind": "reveal",
+   "gain": 0.33
+  },
+  {
+   "t": 2.45,
+   "kind": "whoosh",
+   "gain": 0.48
+  },
+  {
+   "t": 2.84,
+   "kind": "impact",
+   "gain": 0.39
+  },
+  {
+   "t": 3.53,
+   "kind": "tonal",
+   "gain": 0.33
+  },
+  {
+   "t": 4.86,
+   "kind": "swipe",
+   "gain": 0.44999999999999996
+  },
+  {
+   "t": 5.9,
+   "kind": "sweep",
+   "gain": 0.42
+  },
+  {
+   "t": 8.12,
+   "kind": "trace",
+   "gain": 0.39
+  },
+  {
+   "t": 9.18,
+   "kind": "click",
+   "gain": 0.42
+  },
+  {
+   "t": 10.46,
+   "kind": "whoosh",
+   "gain": 0.48
+  },
+  {
+   "t": 10.96,
+   "kind": "impact",
+   "gain": 0.3
+  },
+  {
+   "t": 11.72,
+   "kind": "swipe",
+   "gain": 0.42
+  },
+  {
+   "t": 12.16,
+   "kind": "click",
+   "gain": 0.39
+  },
+  {
+   "t": 12.65,
+   "kind": "click",
+   "gain": 0.39
+  },
+  {
+   "t": 13.09,
+   "kind": "pop",
+   "gain": 0.44999999999999996
+  },
+  {
+   "t": 16.04,
+   "kind": "impact",
+   "gain": 0.42
+  },
+  {
+   "t": 16.95,
+   "kind": "riser",
+   "gain": 0.33
+  },
+  {
+   "t": 17.98,
+   "kind": "whoosh",
+   "gain": 0.5
+  },
+  {
+   "t": 21.44,
+   "kind": "whoosh",
+   "gain": 0.42
+  },
+  {
+   "t": 22.15,
+   "kind": "impact",
+   "gain": 0.44999999999999996
+  },
+  {
+   "t": 23.88,
+   "kind": "soft",
+   "gain": 0.36
+  },
+  {
+   "t": 26.61,
+   "kind": "swipe",
+   "gain": 0.36
+  },
+  {
+   "t": 27.38,
+   "kind": "tonal",
+   "gain": 0.36
+  },
+  {
+   "t": 27.7,
+   "kind": "pop",
+   "gain": 0.42
+  }
+ ],
+ "shots": [
+  {
+   "start": 0,
+   "end": 2.42,
+   "screen": "Бетке жақын план (140%), жоғарыда қараңғы көлеңке; «Claude арқылы» кіші әріппен, «монтаж жасап жүрсің» серифті курсивпен сөзбе-сөз",
+   "spoken": "Claude арқылы монтаж жасап жүрсің,",
+   "text": "0.38 с «CLAUDE АРҚЫЛЫ» · 0.95 с «монтаж жасап жүрсің»",
+   "inside": "0.36 с reveal дыбысы",
+   "transition": "2.42–2.77 с кең планға жылжып ашылады",
+   "keyT": 1.4
+  },
+  {
+   "start": 2.42,
+   "end": 4.85,
+   "screen": "Бастың артында қызғылт үлкен БАРЛЫҚ / МҮМКІНДІГІН (әріптер ретімен), кеуде тұсында қолжазба «пайдаланып жүрсің бе?»",
+   "spoken": "бірақ оның барлық мүмкіндіктерін пайдаланып жүрсің бе?",
+   "text": "2.50 с БАРЛЫҚ · 2.84 с МҮМКІНДІГІН · 3.53 с қолжазба",
+   "inside": "2.45 whoosh · 2.84 impact · 3.53 tonal",
+   "transition": "4.86 с фон ауысады",
+   "keyT": 3.9
+  },
+  {
+   "start": 4.85,
+   "end": 5.9,
+   "screen": "Артқы фон төменнен жоғары графит фактураға ауысады; басының артында ФОНДЫ + қолжазба «ауыстыру»",
+   "spoken": "Фонды ауыстыру,",
+   "text": "4.89 с ФОНДЫ · 5.20 с «ауыстыру»",
+   "inside": "4.86 swipe",
+   "transition": "—",
+   "keyT": 5.8
+  },
+  {
+   "start": 5.9,
+   "end": 7.6,
+   "screen": "Салыстыру: экранның сол жағы — түпнұсқа өзен, оң жағы — графит фон, ортасында ақ бөлгіш; артында АДАМДЫ + «фоннан бөліп алу»",
+   "spoken": "адамды фоннан бөліп алу,",
+   "text": "5.90 с АДАМДЫ · 6.37 с сөзбе-сөз курсив",
+   "inside": "5.90 sweep",
+   "transition": "бөлгіш жабылады",
+   "keyT": 7.2
+  },
+  {
+   "start": 7.6,
+   "end": 9.15,
+   "screen": "Графит фонда силуэт айналасына ақ контур сызылады; артында «ақ контур» курсив + «ЖАСАУ»",
+   "spoken": "ақ контур жасау,",
+   "text": "8.12 с «ақ контур» · 8.69 с «ЖАСАУ»",
+   "inside": "8.12 trace",
+   "transition": "9.15 с фон төмен қарай кетеді",
+   "keyT": 8.75
+  },
+  {
+   "start": 9.15,
+   "end": 10.42,
+   "screen": "Жақын план (122%); төменде «Автоматты субтитр» сөзбе-сөз + CC, «субтитр» астында бордо сызық — субтитр демосы",
+   "spoken": "автоматты субтитр,",
+   "text": "9.18 с · 9.82 с",
+   "inside": "9.18 click",
+   "transition": "10.42 с кең план",
+   "keyT": 10.1
+  },
+  {
+   "start": 10.42,
+   "end": 11.85,
+   "screen": "Толық экранды графит карточка: үлкен қызғылт МӘТІН (әріптер ретімен) + курсив «анимациялар»",
+   "spoken": "мәтіндік анимациялар және",
+   "text": "10.46 с МӘТІН · 10.96 с «анимациялар»",
+   "inside": "10.46 whoosh · 10.96 impact",
+   "transition": "11.72 с whip ауысу",
+   "keyT": 11.65
+  },
+  {
+   "start": 11.85,
+   "end": 14.85,
+   "screen": "Экран екіге: жоғарыда графит панель — «ТҮСІНДІРМЕЛІ / графикалар» және Кадр → Мәтін → Нәтиже схемасы; төменде автор",
+   "spoken": "түсіндірмелі графикалар қосу.",
+   "text": "12.16 · 12.65 · 13.09 с белгілер · 13.09 с «графикалар»",
+   "inside": "click · click · pop",
+   "transition": "14.85 с жақын планға cut",
+   "keyT": 13.6
+  },
+  {
+   "start": 14.85,
+   "end": 17.2,
+   "screen": "Жақын план (125%); фонда жарық жолағы; «видео және дыбыстық» курсив, «ЭФФЕКТІЛЕР» үлкен; 15.95–16.45 с қара-ақ жарқыл + 137%-ға наезд",
+   "spoken": "Видео және дыбыстық эффектілер қосу",
+   "text": "14.90 с курсив сөзбе-сөз · 16.04 с ЭФФЕКТІЛЕР",
+   "inside": "16.04 impact · 16.95 riser",
+   "transition": "—",
+   "keyT": 16.6
+  },
+  {
+   "start": 17.2,
+   "end": 18.95,
+   "screen": "«кадр арасындағы» курсив, сосын графит панель оңнан өтіп, үлкен АУЫСУЛАР сөзі; панель артында кең планға ауысады",
+   "spoken": "және кадр арасындағы ауысулар.",
+   "text": "17.25 с курсив · 17.95 с АУЫСУЛАР",
+   "inside": "17.98 whoosh",
+   "transition": "панель солға кетеді",
+   "keyT": 18.5
+  },
+  {
+   "start": 18.95,
+   "end": 24.1,
+   "screen": "Қара-ақ кадр; төменде «ОСЫНЫҢ БАРЛЫҒЫН», «БІР СТИЛЬДЕ», курсив «кәсіби», үлкен «МОНТАЖ» бордо сызықпен",
+   "spoken": "Осының барлығын Claude арқылы біріктіріп, бір стильде кәсіби монтаж жасауға болады.",
+   "text": "18.95 с · 21.44 с · 22.15 с · 22.30 с",
+   "inside": "21.44 whoosh · 22.15 impact",
+   "transition": "23.88 с ақ жарқыл, түске оралады",
+   "keyT": 23.2
+  },
+  {
+   "start": 24.1,
+   "end": 25.6,
+   "screen": "Жақын план (115%), түсті, жазусыз — автордың жүзі",
+   "spoken": "Қалай жасалатынын",
+   "text": "—",
+   "inside": "—",
+   "transition": "—",
+   "keyT": 24.9
+  },
+  {
+   "start": 25.6,
+   "end": 29.5,
+   "screen": "Төменде көлеңке: «БІЛГІҢ КЕЛСЕ», қызғылт «КОММЕНТАРИЙГЕ», үлкен курсив «CLAUDE», «СӨЗІН ЖАЗ»; соңғы кадр 1.2 с тоқтайды",
+   "spoken": "білгің келсе, комментарийге Claude сөзін жаз.",
+   "text": "25.70 · 26.61 · 27.38 · 27.64 с",
+   "inside": "26.61 swipe · 27.38 tonal · 27.70 pop",
+   "transition": "соңы",
+   "keyT": 28.9
+  }
+ ]
+}

@@ -16,7 +16,7 @@ export const EffectSchema = z.discriminatedUnion("type", [
   /** Big word between background and person (person cut out on top). open = letters unmask from the centre; rise = letters come up one by one. */
   z.object({ type: z.literal("behind"), start: T, end: T, text: z.string(), y: Px, size: Px, anim: z.enum(["open", "rise"]), color: z.string().optional() }),
   /** Background replaced by a colour: vertical edge sweeps left→right at wipeAt; optionally the colour layer slides right at slideAt to reveal the original background (layers). */
-  z.object({ type: z.literal("background"), start: T, end: T, color: z.string(), wipeAt: T, wipeDur: z.number().positive(), slideAt: T.optional(), slideDur: z.number().positive().optional(), slideX: Px.optional(), fadeOut: z.number().default(0.25) }),
+  z.object({ type: z.literal("background"), start: T, end: T, color: z.string(), texture: z.boolean().default(false), wipe: z.enum(["right", "up"]).default("right"), wipeAt: T, wipeDur: z.number().positive(), slideAt: T.optional(), slideDur: z.number().positive().optional(), slideX: Px.optional(), compare: z.tuple([T, T]).optional(), fadeOut: z.number().default(0.25) }),
   /** White outline of the person's silhouette, drawn around the body starting at `fromDeg` (0 = up, clockwise), held, faded. */
   z.object({ type: z.literal("contour"), start: T, drawDur: z.number().positive(), end: T, width: Px.default(7), fromDeg: z.number().default(300), cx: Px.default(540), cy: Px.default(900) }),
   /** Soft light band passing behind the person once. */
@@ -38,6 +38,27 @@ export const EffectSchema = z.discriminatedUnion("type", [
   z.object({ type: z.literal("timeline"), start: T, fadeAt: T, end: T, y: Px, tracks: z.array(z.object({ icon: z.enum(["layers", "T", "wave"]), at: T })).min(1).max(4) }),
   /** Accent plate with text. */
   z.object({ type: z.literal("plate"), start: T, end: T, y: Px, text: z.string(), x: Px.default(478) }),
+  /**
+   * Editorial poster (Premium Editorial design system, references/editorial-style.md): a stack of lines with typographic roles.
+   * behind = drawn between background and the cut-out person (items with `front` stay in front). bg modes darken / replace / desaturate.
+   */
+  z.object({
+    type: z.literal("poster"), start: T, end: T, anchorY: z.number().min(0).max(1), behind: z.boolean().default(false),
+    bg: z.enum(["none", "shade-top", "shade-bottom", "texture", "mono"]).default("none"), maxWidth: z.number().default(0.74), exit: z.enum(["up", "fade"]).default("up"),
+    items: z.array(z.object({
+      text: z.string(), role: z.enum(["label", "sans", "serif", "italic", "script"]), size: z.number().positive(), at: T,
+      color: z.string().default("milk"), anim: z.enum(["word", "stagger", "mask", "script", "scale", "tracking", "fade"]).default("fade"),
+      /** Spoken time of every word (anim word); filled from the transcript. */
+      words: z.array(T).optional(),
+      y: z.number().optional(), front: z.boolean().optional(), rotate: z.number().optional(), dx: z.number().optional(), underline: z.boolean().optional(),
+    })).min(1).max(5),
+  }),
+  /** Transitions: whip (fast horizontal blur pan), type (graphite panel with a huge word sweeps across), flash (white flash). */
+  z.object({ type: z.literal("transition"), start: T, end: T, style: z.enum(["whip", "type", "flash"]), text: z.string().optional() }),
+  /** Split screen: graphite panel on top, the person slides into the lower part. */
+  z.object({ type: z.literal("split"), start: T, end: T, panel: z.number().default(0.45) }),
+  /** Black-and-white video for a moment (punch accent / poster with mono background). */
+  z.object({ type: z.literal("mono"), start: T, end: T }),
   /** Comment field: opens at start, `typed` is typed from typeAt (one char per `charDur`), CTA line above it. */
   z.object({ type: z.literal("comment"), start: T, end: T, y: Px, typeAt: T, typed: z.string(), charDur: z.number().default(0.07), cta: z.string(), ctaAccent: z.string(), ctaAt: T }),
 ]);
@@ -101,6 +122,7 @@ export function showcaseChecks(s: Showcase): string[] {
   const texts: Array<{ a: number; b: number; what: string }> = [];
   for (const e of s.effects) {
     if (e.end > dur + 0.01) out.push(`${e.type} заканчивается после конца видео (${e.end} > ${dur.toFixed(2)})`);
+    if (e.type === "poster") texts.push({ a: e.start, b: e.end, what: e.items.map((x) => x.text).join(" ") });
     if (e.type === "label" || e.type === "plate" || e.type === "comment") texts.push({ a: e.start, b: e.end, what: e.type === "label" ? e.words.map((w) => w.text).join(" ") : e.type === "plate" ? e.text : e.cta });
     if ((e.type === "label" || e.type === "plate") && (e.y < 0.115 * 1920 || e.y > 0.77 * 1920)) out.push(`«${e.type}» вне безопасной зоны по высоте (y=${e.y})`);
   }

@@ -1,6 +1,11 @@
 import "@fontsource/noto-sans-display/800.css";
 import "@fontsource/noto-sans/600.css";
 import "@fontsource/noto-sans/700.css";
+import "@fontsource/inter-tight/700.css";
+import "@fontsource/inter-tight/900.css";
+import "@fontsource/cormorant-garamond/600.css";
+import "@fontsource/cormorant-garamond/700-italic.css";
+import "@fontsource/bad-script/400.css";
 import React from "react";
 import { AbsoluteFill, Audio, Img, Sequence, Video, staticFile, useCurrentFrame, continueRender, delayRender } from "remotion";
 import { z } from "zod";
@@ -24,7 +29,7 @@ function useFonts(spec: Spec) {
   const [h] = React.useState(() => (fontsReady || typeof document === "undefined" ? null : delayRender("showcase fonts")));
   React.useEffect(() => {
     if (h === null) return;
-    Promise.all([`800 100px "${spec.fonts.display}"`, `600 60px "${spec.fonts.text}"`, `700 60px "${spec.fonts.text}"`].map((f) => document.fonts.load(f, "ӘҒҚҢӨҰҮҺІ әғқңөұүһі")))
+    Promise.all([`800 100px "${spec.fonts.display}"`, `600 60px "${spec.fonts.text}"`, `700 60px "${spec.fonts.text}"`, `900 100px "Inter Tight"`, `700 100px "Inter Tight"`, `600 100px "Cormorant Garamond"`, `italic 700 100px "Cormorant Garamond"`, `400 100px "Bad Script"`].map((f) => document.fonts.load(f, "ӘҒҚҢӨҰҮҺІ әғқңөұүһі")))
       .then(() => { fontsReady = true; continueRender(h); })
       .catch(() => continueRender(h));
   }, [h, spec.fonts.display, spec.fonts.text]);
@@ -86,15 +91,26 @@ const Behind: React.FC<{ e: Extract<Effect, { type: "behind" }>; t: number; spec
   );
 };
 
+/** Graphite editorial texture (tiled turbulence noise + vignette). */
+const NOISE = `url("data:image/svg+xml;utf8,${encodeURIComponent('<svg xmlns="http://www.w3.org/2000/svg" width="240" height="240"><filter id="n"><feTurbulence type="fractalNoise" baseFrequency="0.85" numOctaves="2" stitchTiles="stitch"/><feColorMatrix values="0 0 0 0 1 0 0 0 0 1 0 0 0 0 1 0 0 0 0.09 0"/></filter><rect width="240" height="240" filter="url(#n)"/></svg>')}")`;
+export const textureBg = (base = "#191919") => ({ backgroundColor: base, backgroundImage: `${NOISE}, radial-gradient(ellipse at 50% 38%, rgba(255,255,255,0.07) 0%, rgba(0,0,0,0) 55%), radial-gradient(ellipse at 50% 50%, rgba(0,0,0,0) 40%, rgba(0,0,0,0.55) 100%)` });
+
 const Background: React.FC<{ e: Extract<Effect, { type: "background" }>; t: number }> = ({ e, t }) => {
   const w = ease((t - e.wipeAt) / e.wipeDur);
   const s = e.slideAt !== undefined ? smooth((t - e.slideAt) / (e.slideDur ?? 0.5)) * (e.slideX ?? 0) : 0;
-  const o = smooth((e.end - t) / e.fadeOut);
+  const o = e.wipe === "up" ? 1 : smooth((e.end - t) / e.fadeOut);
+  const out = e.wipe === "up" ? ease((t - (e.end - e.fadeOut)) / e.fadeOut) : 0; // wipe back down at the end
+  const cmp = e.compare && t >= e.compare[0] && t < e.compare[1] ? ease((t - e.compare[0]) / 0.35) * smooth((e.compare[1] - t) / 0.3) : 0;
+  const clip = e.wipe === "up" ? `inset(${(1 - w + out) * 100}% 0 0 ${cmp * 50}%)` : `inset(0 ${(1 - w) * 100}% 0 ${cmp * 50}%)`;
+  const fill = e.texture ? textureBg(e.color) : { background: `radial-gradient(ellipse at 50% 35%, ${e.color} 0%, ${e.color} 45%, #4a1022 100%)` };
   const edge = w > 0 && w < 1;
   return (
     <AbsoluteFill style={{ opacity: o }}>
-      <div style={{ position: "absolute", left: s, top: 0, width: W, height: H, clipPath: `inset(0 ${(1 - w) * 100}% 0 0)`, background: `radial-gradient(ellipse at 50% 35%, ${e.color} 0%, ${e.color} 45%, #4a1022 100%)`, boxShadow: s > 0 ? "-30px 0 60px rgba(0,0,0,0.45)" : undefined }} />
-      {edge ? <div style={{ position: "absolute", left: w * W - 3, top: 0, width: 6, height: H, background: "rgba(255,255,255,0.85)", boxShadow: "0 0 24px rgba(255,255,255,0.8)" }} /> : null}
+      <div style={{ position: "absolute", left: s, top: 0, width: W, height: H, clipPath: clip, ...fill, boxShadow: s > 0 ? "-30px 0 60px rgba(0,0,0,0.45)" : undefined }} />
+      {edge ? (e.wipe === "up"
+        ? <div style={{ position: "absolute", left: 0, top: (1 - w) * H - 3, width: W, height: 6, background: "rgba(255,255,255,0.85)", boxShadow: "0 0 24px rgba(255,255,255,0.8)" }} />
+        : <div style={{ position: "absolute", left: w * W - 3, top: 0, width: 6, height: H, background: "rgba(255,255,255,0.85)", boxShadow: "0 0 24px rgba(255,255,255,0.8)" }} />) : null}
+      {cmp > 0 ? <div style={{ position: "absolute", left: W / 2 - 3, top: H * (0.5 - 0.5 * cmp), width: 6, height: H * cmp, background: "#F7F5F2", boxShadow: "0 0 18px rgba(0,0,0,0.5)" }} /> : null}
     </AbsoluteFill>
   );
 };
@@ -269,6 +285,148 @@ const Comment: React.FC<{ e: Extract<Effect, { type: "comment" }>; t: number; sp
   );
 };
 
+// ---------------- editorial posters & transitions ----------------
+const PALETTE: Record<string, string> = { milk: "#F7F5F2", pink: "#F2D5E4", burgundy: "#8D263E", graphite: "#191919" };
+const col = (c: string) => PALETTE[c] ?? c;
+const ROLE: Record<string, { family: string; weight: number; italic?: boolean; upper?: boolean; track: number; lh: number; k: number }> = {
+  sans: { family: "Inter Tight", weight: 900, track: -0.045, lh: 0.9, k: 0.76 },
+  label: { family: "Inter Tight", weight: 700, upper: true, track: 0.18, lh: 1.35, k: 0.72 },
+  serif: { family: "Cormorant Garamond", weight: 600, track: 0, lh: 1.0, k: 0.47 },
+  italic: { family: "Cormorant Garamond", weight: 700, italic: true, track: -0.01, lh: 0.95, k: 0.43 },
+  script: { family: "Bad Script", weight: 400, track: 0, lh: 1.1, k: 0.5 },
+};
+type PItem = Extract<Effect, { type: "poster" }>["items"][number];
+/** Font px of an item: size × width, shrunk so the line fits maxWidth (estimated advance per role). */
+const itemPx = (it: PItem, maxW: number) => {
+  const r = ROLE[it.role]!;
+  const px = it.size * W;
+  const est = it.text.length * px * (r.k + r.track);
+  return est > maxW ? (px * maxW) / est : px;
+};
+
+const PosterLine: React.FC<{ it: PItem; t: number; px: number }> = ({ it, t, px }) => {
+  const r = ROLE[it.role]!;
+  const text = r.upper ? it.text.toUpperCase() : it.text;
+  const base: React.CSSProperties = { fontFamily: `"${r.family}"`, fontWeight: r.weight, fontStyle: r.italic ? "italic" : "normal", fontSize: px, lineHeight: 1, letterSpacing: `${r.track}em`, color: col(it.color), whiteSpace: "nowrap", display: "inline-block", textShadow: it.role === "sans" ? "none" : "0 2px 14px rgba(0,0,0,0.35)" };
+  const k0 = ease((t - it.at) / 0.45);
+  let body: React.ReactNode = text;
+  let style: React.CSSProperties = { opacity: k0 };
+  if (it.anim === "word") {
+    const ws = text.split(" ");
+    body = ws.map((w, i) => {
+      const at = it.words?.[i] ?? it.at + i * 0.2;
+      const k = ease((t - at) / 0.3);
+      return <span key={i} style={{ display: "inline-block", opacity: k, transform: `translateY(${(1 - k) * px * 0.3}px)`, filter: k < 1 ? `blur(${(1 - k) * 6}px)` : undefined, marginRight: i < ws.length - 1 ? "0.25em" : 0 }}>{w}</span>;
+    });
+    style = {};
+  } else if (it.anim === "stagger") {
+    body = [...text].map((ch, i) => {
+      const k = ease((t - it.at - i * 0.035) / 0.35);
+      return <span key={i} style={{ display: "inline-block", whiteSpace: "pre", opacity: k, transform: `translateY(${(1 - k) * px * 0.45}px)` }}>{ch}</span>;
+    });
+    style = {};
+  } else if (it.anim === "mask") {
+    style = { clipPath: `inset(${(1 - k0) * 100}% 0 -20% 0)`, transform: `translateY(${(1 - k0) * px * 0.4}px)` };
+  } else if (it.anim === "script") {
+    const k = smooth((t - it.at) / 0.6);
+    style = { clipPath: `inset(-30% ${(1 - k) * 100}% -30% -5%)`, opacity: k > 0 ? 1 : 0 };
+  } else if (it.anim === "scale") {
+    style = { opacity: k0, transform: `scale(${1.25 - 0.25 * k0})`, filter: k0 < 1 ? `blur(${(1 - k0) * 10}px)` : undefined };
+  } else if (it.anim === "tracking") {
+    style = { opacity: k0, letterSpacing: `${r.track + (1 - k0) * 0.5}em` };
+  }
+  const ul = it.underline ? ease((t - it.at - 0.3) / 0.45) : 0;
+  return (
+    <span style={{ position: "relative", display: "inline-block", transform: `translateX(${(it.dx ?? 0) * W}px) rotate(${it.rotate ?? 0}deg)` }}>
+      <span style={{ ...base, ...style }}>{body}</span>
+      {it.underline ? <span style={{ position: "absolute", left: 0, bottom: -px * 0.06, height: Math.max(6, px * 0.05), width: `${ul * 100}%`, background: PALETTE.burgundy, borderRadius: 4 }} /> : null}
+    </span>
+  );
+};
+
+/** layer: "behind" = stacked lines drawn under the person (poster.behind); "front" = everything else. */
+const Poster: React.FC<{ e: Extract<Effect, { type: "poster" }>; t: number; layer: "behind" | "front" }> = ({ e, t, layer }) => {
+  // Lower part of a Reels frame: keep clear of the like/comment column on the right (centre shifts left, narrower).
+  const low = e.anchorY > 0.58;
+  const maxW = (low ? Math.min(e.maxWidth, 0.7) : e.maxWidth) * W;
+  const cx = low ? 0.443 * W : W / 2;
+  const exitK = e.exit === "up" ? ease((t - (e.end - 0.22)) / 0.22) : 0;
+  const o = e.exit === "fade" ? smooth((e.end - t) / 0.22) : 1 - exitK;
+  const stack = e.items.filter((x) => x.y === undefined);
+  const free = e.items.filter((x) => x.y !== undefined);
+  const inLayer = (it: PItem) => (layer === "behind" ? e.behind && !it.front : !e.behind || !!it.front);
+  // Stack: heights by role line-height; italic/script tuck under the line above (overlap).
+  const pxs = stack.map((it) => itemPx(it, maxW));
+  const hs = stack.map((it, i) => pxs[i]! * ROLE[it.role]!.lh - (i > 0 && (it.role === "italic" || it.role === "script") ? pxs[i]! * 0.22 : 0));
+  const total = hs.reduce((a, b) => a + b, 0);
+  let y = e.anchorY * H - total / 2;
+  const shift = -exitK * 60;
+  return (
+    <AbsoluteFill style={{ opacity: o, transform: `translateY(${shift}px)` }}>
+      {stack.map((it, i) => {
+        const top = y;
+        y += hs[i]!;
+        if (!inLayer(it)) return null;
+        return (
+          <div key={`s${i}`} style={{ position: "absolute", left: cx - W / 2, width: W, top, height: hs[i], display: "flex", justifyContent: "center", alignItems: "flex-end" }}>
+            <PosterLine it={it} t={t} px={pxs[i]!} />
+          </div>
+        );
+      })}
+      {free.map((it, i) =>
+        inLayer(it) ? (
+          <div key={`f${i}`} style={{ position: "absolute", left: (it.y! > 0.58 ? cx : W / 2) - W / 2, width: W, top: it.y! * H - itemPx(it, maxW) * 0.6, display: "flex", justifyContent: "center" }}>
+            <PosterLine it={it} t={t} px={itemPx(it, maxW)} />
+          </div>
+        ) : null,
+      )}
+    </AbsoluteFill>
+  );
+};
+
+const PosterBg: React.FC<{ e: Extract<Effect, { type: "poster" }>; t: number }> = ({ e, t }) => {
+  const o = Math.min(ease((t - e.start) / 0.3), smooth((e.end - t) / 0.25));
+  if (e.bg === "shade-top") return <div style={{ position: "absolute", left: 0, top: 0, width: W, height: H * 0.5, opacity: o, background: "linear-gradient(180deg, rgba(0,0,0,0.55) 0%, rgba(0,0,0,0.3) 55%, rgba(0,0,0,0) 100%)" }} />;
+  if (e.bg === "shade-bottom") return <div style={{ position: "absolute", left: 0, top: H * 0.42, width: W, height: H * 0.58, opacity: o, background: "linear-gradient(0deg, rgba(0,0,0,0.62) 0%, rgba(0,0,0,0.35) 55%, rgba(0,0,0,0) 100%)" }} />;
+  if (e.bg === "texture") return <AbsoluteFill style={{ ...textureBg(), opacity: o }} />;
+  return null;
+};
+
+const Transition: React.FC<{ e: Extract<Effect, { type: "transition" }>; t: number }> = ({ e, t }) => {
+  const p = clamp01((t - e.start) / (e.end - e.start));
+  if (e.style === "flash") return <AbsoluteFill style={{ background: "#FFFFFF", opacity: Math.sin(p * Math.PI) * 0.9 }} />;
+  if (e.style === "whip") {
+    const k = Math.sin(p * Math.PI);
+    return (
+      <AbsoluteFill style={{ opacity: k }}>
+        <div style={{ position: "absolute", inset: 0, background: "linear-gradient(90deg, rgba(247,245,242,0) 0%, rgba(247,245,242,0.55) 50%, rgba(247,245,242,0) 100%)", transform: `translateX(${(p - 0.5) * W * 1.6}px) scaleX(1.6)` }} />
+        <div style={{ position: "absolute", inset: 0, background: "rgba(25,25,25,0.35)" }} />
+      </AbsoluteFill>
+    );
+  }
+  // type: graphite panel sweeps in from the right, holds the huge word, leaves to the left.
+  const inK = ease(p / 0.3);
+  const outK = ease((p - 0.75) / 0.25);
+  const x = (1 - inK) * W - outK * W;
+  const word = e.text ?? "";
+  const px = Math.min(0.24 * W, (0.86 * W) / Math.max(1, word.length * 0.62));
+  return (
+    <div style={{ position: "absolute", left: x, top: 0, width: W, height: H, ...textureBg(), display: "flex", alignItems: "center", justifyContent: "center" }}>
+      <div style={{ fontFamily: '"Inter Tight"', fontWeight: 900, fontSize: px, letterSpacing: "-0.045em", color: PALETTE.pink, transform: `scale(${1.08 - 0.08 * ease((p - 0.1) / 0.5)})` }}>{word}</div>
+    </div>
+  );
+};
+
+const SplitPanel: React.FC<{ e: Extract<Effect, { type: "split" }>; t: number }> = ({ e, t }) => {
+  const k = Math.min(ease((t - e.start) / 0.35), smooth((e.end - t) / 0.3));
+  return <div style={{ position: "absolute", left: 0, top: 0, width: W, height: H * e.panel * k, ...textureBg(), borderBottom: k > 0.05 ? `6px solid ${PALETTE.burgundy}` : undefined }} />;
+};
+export const splitShift = (effects: Effect[], t: number) => {
+  const s = effects.find((x) => x.type === "split" && t >= x.start && t <= x.end) as Extract<Effect, { type: "split" }> | undefined;
+  if (!s) return 0;
+  return H * (s.panel - 0.18) * Math.min(ease((t - s.start) / 0.35), smooth((s.end - t) / 0.3));
+};
+
 // ---------------- main ----------------
 export const Showcase: React.FC<Props> = ({ spec, matteFrames, sfxDir, guides }) => {
   useFonts(spec);
@@ -280,23 +438,39 @@ export const Showcase: React.FC<Props> = ({ spec, matteFrames, sfxDir, guides })
   const ox = z.ax * W;
   const oy = z.ay * H;
   const active = (e: Effect) => t >= e.start && t <= e.end;
-  const under = spec.effects.filter((e) => (e.type === "background" || e.type === "behind" || e.type === "contour" || e.type === "sweep") && t >= e.start - 0.05 && t <= e.end + 0.05);
-  const needMatte = under.length > 0 && matteFrames > 0;
+  const near = (e: Effect) => t >= e.start - 0.05 && t <= e.end + 0.05;
+  const under = spec.effects.filter((e) => (e.type === "background" || e.type === "contour" || e.type === "sweep") && near(e));
+  const behindFx = spec.effects.filter((e) => (e.type === "behind" || (e.type === "poster" && e.behind)) && near(e));
+  const needMatte = (under.length > 0 || behindFx.length > 0) && matteFrames > 0;
+  const posters = spec.effects.filter((e): e is Extract<Effect, { type: "poster" }> => e.type === "poster" && near(e));
   const over = spec.effects.filter((e) => active(e) && (e.type === "label" || e.type === "schema" || e.type === "timeline" || e.type === "plate" || e.type === "comment"));
+  const transitions = spec.effects.filter((e): e is Extract<Effect, { type: "transition" }> => e.type === "transition" && active(e));
+  const splits = spec.effects.filter((e): e is Extract<Effect, { type: "split" }> => e.type === "split" && near(e));
+  const mono = spec.effects.some((e) => (e.type === "mono" || (e.type === "poster" && e.bg === "mono")) && active(e));
   const cap = spec.captions.find((c) => t >= c.start && t < c.end);
   const mSrc = matteSrc(spec, idx);
+  const camT = `translateY(${splitShift(spec.effects, t)}px) scale(${z.zoom})`;
+  const camStyle: React.CSSProperties = { transformOrigin: `${ox}px ${oy}px`, transform: camT, filter: mono ? "grayscale(1) contrast(1.08)" : undefined };
   return (
     <AbsoluteFill style={{ backgroundColor: "#000" }}>
-      <AbsoluteFill style={{ transformOrigin: `${ox}px ${oy}px`, transform: `scale(${z.zoom})` }}>
+      <AbsoluteFill style={camStyle}>
         {frozen && spec.lastFrame ? <Img src={staticFile(spec.lastFrame)} style={{ width: W, height: H }} /> : <Video src={staticFile(spec.video)} muted style={{ width: W, height: H }} />}
-        {under.map((e, i) =>
-          e.type === "background" ? <Background key={i} e={e} t={t} /> : e.type === "sweep" ? <Sweep key={i} e={e} t={t} /> : e.type === "behind" ? <Behind key={i} e={e} t={t} spec={spec} /> : e.type === "contour" ? <Contour key={i} e={e} t={t} src={mSrc} /> : null,
-        )}
-        {needMatte ? <Img src={mSrc} style={{ position: "absolute", left: 0, top: 0, width: W, height: H }} /> : null}
+        {under.map((e, i) => (e.type === "background" ? <Background key={i} e={e} t={t} /> : e.type === "sweep" ? <Sweep key={i} e={e} t={t} /> : e.type === "contour" ? <Contour key={i} e={e} t={t} src={mSrc} /> : null))}
       </AbsoluteFill>
+      {posters.map((e, i) => (e.bg !== "texture" ? <PosterBg key={`pb${i}`} e={e} t={t} /> : null))}
+      {behindFx.map((e, i) => (e.type === "behind" ? <Behind key={`b${i}`} e={e} t={t} spec={spec} /> : e.type === "poster" ? <Poster key={`b${i}`} e={e} t={t} layer="behind" /> : null))}
+      {needMatte ? (
+        <AbsoluteFill style={camStyle}>
+          <Img src={mSrc} style={{ position: "absolute", left: 0, top: 0, width: W, height: H }} />
+        </AbsoluteFill>
+      ) : null}
+      {splits.map((e, i) => <SplitPanel key={`sp${i}`} e={e} t={t} />)}
+      {posters.map((e, i) => (e.bg === "texture" ? <PosterBg key={`pt${i}`} e={e} t={t} /> : null))}
+      {posters.map((e, i) => <Poster key={`pf${i}`} e={e} t={t} layer="front" />)}
       {over.map((e, i) =>
         e.type === "label" ? <Label key={i} e={e} t={t} spec={spec} /> : e.type === "schema" ? <Schema key={i} e={e} t={t} spec={spec} /> : e.type === "timeline" ? <Timeline key={i} e={e} t={t} spec={spec} /> : e.type === "plate" ? <Plate key={i} e={e} t={t} spec={spec} /> : e.type === "comment" ? <Comment key={i} e={e} t={t} spec={spec} /> : null,
       )}
+      {transitions.map((e, i) => <Transition key={`tr${i}`} e={e} t={t} />)}
       {cap ? (
         <>
           <Shade y={cap.y} o={Math.min(ease((t - cap.start) / 0.12), 1)} />
