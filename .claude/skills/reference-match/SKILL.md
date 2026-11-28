@@ -14,7 +14,7 @@ description: Монтаж «как в референсе». Используй, 
    - **темп** → склейки в секунду → энергия камеры;
    - громкость; лист кадров `work/reference/frames.jpg`.
 3. **Посмотри `frames.jpg` (Read)** и заполни `storyboard/reference-style.json` по тому, что реально видно. Неуверен — оставь `null` (останется значение по умолчанию):
-   - `font`: modern-sans | neutral-sans | geometric-bold | serif | condensed | rounded | rounded-bold | elegant (все с казахскими буквами);
+   - `font`: modern-sans | neutral-sans | geometric-bold | serif | condensed | rounded | rounded-bold | elegant | tight-display | soft-geometric | editorial-serif | script (все с казахскими буквами);
    - `weight` 400–900, `uppercase`, `size`: small | medium | large;
    - `textColor`, `accentColor`, `onAccent` (HEX);
    - `position`: bottom | middle | top | auto; `wordsPerPhrase` 1–6;
@@ -25,6 +25,7 @@ description: Монтаж «как в референсе». Используй, 
 4. `npm run plan -- <id> --reference [явные пожелания]` — **явные слова пользователя важнее референса**:
    «шрифт с засечками» → `--font serif`; «жёлтый акцент» → `--accent yellow`; «текст белый» → `--text white`; «мельче/крупнее» → `--size small|large`; «капсом/без капса» → `--upper|--lower`; «без анимации за головой» → `--no-behind`; формат, layout, иконки — как обычно.
 5. `npm run storyboard -- <id>` → покажи пользователю сториборд, скажи, что взято из референса (стиль, цвет, темп), что — по его словам, и что определить нельзя (точный шрифт референса может отличаться — подбирается ближайший с казахскими буквами).
-6. Дальше обычный процесс: одобрение → рендер → обложка → QC.
+5б. **Приёмы монтажа референса** (окна, разделённый экран, полноэкранные схемы, плашки, частота): перенеси их в `storyboard/directions.json` на моменты речи пользователя с тем же смыслом (skill `editorial-motion`), а не на те же секунды. Если в референсе этих приёмов нет — `--no-semantic`.
+6. Дальше обычный процесс: аниматик → одобрение → рендер → обложка → QC.
 
 `--no-reference` возвращает стиль без референса.

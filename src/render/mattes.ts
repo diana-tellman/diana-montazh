@@ -13,7 +13,7 @@ export async function withMattes(sb: Storyboard, log: (s: string) => void = () =
   const behindText = [];
   for (const b of sb.behindText) {
     const v = sb.visuals.find((x) => b.start >= x.start && b.start < x.end);
-    if (!v || v.kind !== "video" || !v.src) {
+    if (!v || v.kind !== "video" || !v.src || b.front) {
       behindText.push({ ...b, matteDir: null });
       continue;
     }

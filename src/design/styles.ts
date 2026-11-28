@@ -4,7 +4,7 @@ import { FONT_FAMILIES, type FontId } from "./fontNames";
 /** Brand palette (default). User colours override it via the storyboard `style.colors`. */
 export const BRAND = { graphite: "#141414", burgundy: "#6B1732", softWhite: "#F7F5F2", white: "#FFFFFF" } as const;
 
-export const StylePresetSchema = z.enum(["brand", "minimal", "kinetic", "glass", "lime"]);
+export const StylePresetSchema = z.enum(["brand", "minimal", "kinetic", "glass", "lime", "editorial", "bordeaux"]);
 export type StylePreset = z.infer<typeof StylePresetSchema>;
 
 export const ColorsSchema = z.object({
@@ -16,6 +16,8 @@ export const ColorsSchema = z.object({
   onAccent: z.string(),
   /** Spoken-not-yet words (dimmed) — or same as text. */
   upcoming: z.string(),
+  /** Second accent (script lines, underline of the active word, glows). Defaults to accent. */
+  accent2: z.string().optional(),
 });
 export type Colors = z.infer<typeof ColorsSchema>;
 
@@ -31,16 +33,26 @@ export type StyleDef = {
   letterSpacing: number;
   colors: Colors;
   /** How the active (being spoken) word is shown. */
-  active: "pill" | "color" | "scale" | "underline";
+  active: "pill" | "color" | "scale" | "underline" | "none";
   /** Words not yet spoken: hidden (karaoke reveal) or dimmed. */
   upcoming: "dim" | "hidden" | "visible";
   /** Readability treatment behind text. */
   backdrop: "shadow" | "glass" | "none";
   /** Entrance of a caption block. */
-  enter: "pop" | "rise" | "fade" | "slide";
+  enter: "pop" | "rise" | "fade" | "slide" | "cut";
   maxWordsPerPhrase: number;
   maxCharsPerLine: number;
   emphasisScale: number;
+  /** Typography roles (all fonts contain Kazakh letters): titles/cards/word behind the head, elegant accent line. */
+  titleFont: FontId;
+  titleWeight: number;
+  titleUppercase: boolean;
+  accentFont: FontId;
+  accentItalic: boolean;
+  /** Preferred caption top (0..1 of height) — e.g. chest level 0.6 like premium Reels. null = as low as possible. */
+  preferY?: number | null;
+  /** Explainer background: dark (black + glows) or light (milk + accent details). */
+  panel?: "dark" | "light";
 };
 
 export const STYLES: Record<StylePreset, StyleDef> = {
@@ -50,6 +62,7 @@ export const STYLES: Record<StylePreset, StyleDef> = {
     font: "onest", weight: 800, uppercase: false, size: 0.048, lineHeight: 1.08, letterSpacing: -0.01,
     colors: { text: BRAND.white, accent: BRAND.burgundy, onAccent: BRAND.white, upcoming: "rgba(255,255,255,0.72)" },
     active: "pill", upcoming: "dim", backdrop: "shadow", enter: "pop", maxWordsPerPhrase: 4, maxCharsPerLine: 22, emphasisScale: 1.06,
+    titleFont: "intertight", titleWeight: 900, titleUppercase: true, accentFont: "cormorant", accentItalic: true,
   },
   minimal: {
     label: "Minimal",
@@ -57,6 +70,7 @@ export const STYLES: Record<StylePreset, StyleDef> = {
     font: "inter", weight: 700, uppercase: false, size: 0.044, lineHeight: 1.12, letterSpacing: -0.005,
     colors: { text: BRAND.white, accent: "#E6B43C", onAccent: "#141414", upcoming: BRAND.white },
     active: "color", upcoming: "visible", backdrop: "shadow", enter: "fade", maxWordsPerPhrase: 5, maxCharsPerLine: 22, emphasisScale: 1.0,
+    titleFont: "intertight", titleWeight: 800, titleUppercase: false, accentFont: "cormorant", accentItalic: true,
   },
   kinetic: {
     label: "Kinetic",
@@ -64,6 +78,7 @@ export const STYLES: Record<StylePreset, StyleDef> = {
     font: "montserrat", weight: 900, uppercase: true, size: 0.052, lineHeight: 1.0, letterSpacing: 0,
     colors: { text: BRAND.white, accent: "#FF2D2D", onAccent: BRAND.white, upcoming: BRAND.white },
     active: "pill", upcoming: "hidden", backdrop: "shadow", enter: "pop", maxWordsPerPhrase: 3, maxCharsPerLine: 16, emphasisScale: 1.1,
+    titleFont: "montserrat", titleWeight: 900, titleUppercase: true, accentFont: "montserrat", accentItalic: false,
   },
   glass: {
     label: "Glass",
@@ -71,6 +86,7 @@ export const STYLES: Record<StylePreset, StyleDef> = {
     font: "onest", weight: 700, uppercase: false, size: 0.045, lineHeight: 1.1, letterSpacing: -0.01,
     colors: { text: BRAND.white, accent: "#7FD3FF", onAccent: "#0B1A24", upcoming: "rgba(255,255,255,0)" },
     active: "color", upcoming: "hidden", backdrop: "glass", enter: "rise", maxWordsPerPhrase: 4, maxCharsPerLine: 20, emphasisScale: 1.06,
+    titleFont: "geologica", titleWeight: 800, titleUppercase: false, accentFont: "onest", accentItalic: false,
   },
   lime: {
     label: "Lime",
@@ -78,6 +94,23 @@ export const STYLES: Record<StylePreset, StyleDef> = {
     font: "montserrat", weight: 900, uppercase: true, size: 0.05, lineHeight: 1.02, letterSpacing: 0.005,
     colors: { text: "#141414", accent: "#C8FF2E", onAccent: "#141414", upcoming: "#141414" },
     active: "scale", upcoming: "visible", backdrop: "none", enter: "slide", maxWordsPerPhrase: 3, maxCharsPerLine: 16, emphasisScale: 1.08,
+    titleFont: "montserrat", titleWeight: 900, titleUppercase: true, accentFont: "badscript", accentItalic: false,
+  },
+  editorial: {
+    label: "Editorial",
+    description: "Премиум-постер: Inter Tight + курсив Cormorant, молочный/розовый/бордо, спокойные появления.",
+    font: "intertight", weight: 800, uppercase: false, size: 0.047, lineHeight: 1.06, letterSpacing: -0.02,
+    colors: { text: "#F7F5F2", accent: "#F2D5E4", onAccent: "#191919", upcoming: "rgba(247,245,242,0.55)" },
+    active: "color", upcoming: "dim", backdrop: "shadow", enter: "rise", maxWordsPerPhrase: 4, maxCharsPerLine: 20, emphasisScale: 1.08,
+    titleFont: "intertight", titleWeight: 900, titleUppercase: true, accentFont: "cormorant", accentItalic: true,
+  },
+  bordeaux: {
+    label: "Bordeaux",
+    description: "Бордо / қызғылт / қара / ақ. Субтитр — бір сөзден, жуан геометриялық шрифт (Montserrat Alternates), анимациясыз ауысады; видеода ақ, ақ нүктелі фонда қара. Схемалар — ақ фонда жылтыр бордо карточкалар.",
+    font: "montalt", weight: 800, uppercase: false, size: 0.064, lineHeight: 1.0, letterSpacing: -0.035,
+    colors: { text: "#FFFFFF", accent: "#9B1C40", onAccent: "#FFFFFF", upcoming: "#FFFFFF", accent2: "#F4A6C0" },
+    active: "none", upcoming: "visible", backdrop: "shadow", enter: "cut", maxWordsPerPhrase: 1, maxCharsPerLine: 16, emphasisScale: 1.0,
+    titleFont: "oswald", titleWeight: 700, titleUppercase: true, accentFont: "badscript", accentItalic: false, preferY: 0.66, panel: "light",
   },
 };
 
@@ -100,7 +133,7 @@ export const NAMED_COLORS: Record<string, string> = {
   yellow: "#FFD60A", "сары": "#FFD60A", "жёлтый": "#FFD60A", "желтый": "#FFD60A",
   gold: "#E6B43C", "алтын": "#E6B43C", "золотой": "#E6B43C",
   burgundy: "#6B1732", "бордо": "#6B1732", "бордовый": "#6B1732",
-  pink: "#FF5C8A", "қызғылт": "#FF5C8A", "розовый": "#FF5C8A",
+  pink: "#F4A6C0", "қызғылт": "#F4A6C0", "розовый": "#F4A6C0", "bordeaux": "#8D1B3D",
   blue: "#3EC5FF", "көк": "#3EC5FF", "синий": "#2D6BFF", "голубой": "#3EC5FF",
   green: "#2ECC71", "жасыл": "#2ECC71", "зелёный": "#2ECC71", "зеленый": "#2ECC71",
   lime: "#C8FF2E", "лайм": "#C8FF2E", "orange": "#FF8A00", "қызғылт сары": "#FF8A00", "оранжевый": "#FF8A00",
@@ -126,13 +159,20 @@ export const StyleOverridesSchema = z
     size: z.number().min(0.03).max(0.08),
     lineHeight: z.number().min(0.9).max(1.4),
     letterSpacing: z.number().min(-0.05).max(0.15),
-    active: z.enum(["pill", "color", "scale", "underline"]),
+    active: z.enum(["pill", "color", "scale", "underline", "none"]),
     upcoming: z.enum(["dim", "hidden", "visible"]),
     backdrop: z.enum(["shadow", "glass", "none"]),
-    enter: z.enum(["pop", "rise", "fade", "slide"]),
+    enter: z.enum(["pop", "rise", "fade", "slide", "cut"]),
     maxWordsPerPhrase: z.number().int().min(1).max(8),
     maxCharsPerLine: z.number().int().min(8).max(32),
     emphasisScale: z.number().min(1).max(1.3),
+    titleFont: z.enum(Object.keys(FONT_FAMILIES) as [FontId, ...FontId[]]),
+    titleWeight: z.number().int().min(300).max(900),
+    titleUppercase: z.boolean(),
+    accentFont: z.enum(Object.keys(FONT_FAMILIES) as [FontId, ...FontId[]]),
+    accentItalic: z.boolean(),
+    preferY: z.number().min(0.1).max(0.8).nullable(),
+    panel: z.enum(["dark", "light"]),
   })
   .partial();
 export type StyleOverrides = z.infer<typeof StyleOverridesSchema>;

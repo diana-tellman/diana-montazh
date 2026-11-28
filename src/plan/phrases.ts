@@ -21,6 +21,24 @@ export function parseEmphasis(raw: string): { text: string; emphasis: boolean } 
   return { text: raw, emphasis: /\d/.test(raw) };
 }
 
+/** Words of a script with `*multi word*` emphasis spans ("*Claude", "Code*") → clean text + flag per word. */
+export function parseEmphasisSeq(raw: string[]): Array<{ text: string; emphasis: boolean }> {
+  let open = false;
+  return raw.map((r) => {
+    if (/^[«"(]*\*.+\*[»".,!?:;)…]*$/u.test(r)) return parseEmphasis(r); // *one word*
+    const starts = /^[«"(]*\*/.test(r);
+    const ends = /\*[»".,!?:;)…]*$/.test(r);
+    const text = r.replace(/\*/g, "");
+    let emphasis = open || starts || /\d/.test(text);
+    if (starts && !ends) open = true;
+    if (ends) {
+      emphasis = emphasis || open;
+      open = false;
+    }
+    return { text, emphasis };
+  });
+}
+
 export function groupPhrases(words: TWord[], r: PhraseRules): TWord[][] {
   const out: TWord[][] = [];
   let cur: TWord[] = [];
